@@ -1,4 +1,5 @@
 Usage of ./solver_monitor:
+```shell
   -config string
     	Path to the config file (default "config.toml")
   -contract-address string
@@ -17,3 +18,4 @@ Usage of ./solver_monitor:
     	Save raw tx responses to db
   -solver-address string
     	Solver address to monitor. This will be used to filter transactions.
+```
