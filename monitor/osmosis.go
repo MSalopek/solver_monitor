@@ -200,7 +200,7 @@ func (m *Monitor) OrdersFromFile(filePath string) ([]DbOrderFilled, []*DbTxRespo
 	orders := []DbOrderFilled{}
 	responses := []*DbTxResponse{}
 
-	m.logger.Info().Interface("records", len(data.TxResponses)).Msg("found records in file - decoding")
+	m.logger.Info().Int("count", len(data.TxResponses)).Msg("found records in file - decoding")
 	for _, txResponse := range data.TxResponses {
 		fillOrders := m.DecodeTxResponse(txResponse)
 		for _, fillOrder := range fillOrders {
@@ -233,7 +233,7 @@ func (m *Monitor) OrdersFromFile(filePath string) ([]DbOrderFilled, []*DbTxRespo
 			TxResponse: s,
 		})
 	}
-	m.logger.Info().Interface("orders", len(orders)).Interface("responses", len(responses)).Msg("decoded orders and responses")
+	m.logger.Info().Int("orders", len(orders)).Int("responses", len(responses)).Msg("decoded orders and responses")
 	return orders, responses, nil
 }
 
@@ -248,19 +248,17 @@ func (m *Monitor) RunOrders(solverAddress string, contractAddress string, saveRa
 
 	if len(newOrders) > 0 {
 		minHeight, maxHeight = getMinMaxHeight(newOrders)
-		logMessage := map[string]string{
-			"event":      "transactions_collected",
-			"count":      strconv.Itoa(len(newOrders)),
-			"min_height": strconv.Itoa(int(minHeight)),
-			"max_height": strconv.Itoa(int(maxHeight)),
-		}
-		m.logger.Info().Interface("details", logMessage).Msg("fetched orders")
+		m.logger.Info().
+			Int("count", len(newOrders)).
+			Int64("min_height", minHeight).
+			Int64("max_height", maxHeight).
+			Msg("collected latest solver fill orders from osmosis")
 	} else {
-		m.logger.Info().Msg("no new orders")
+		m.logger.Info().Msg("no new solver fill orders on osmosis")
 	}
 
 	if int64(latestHeight) >= maxHeight {
-		m.logger.Info().Msg("no new orders")
+		m.logger.Info().Msg("no new solver fill orders on osmosis")
 		return
 	}
 
@@ -271,10 +269,10 @@ func (m *Monitor) RunOrders(solverAddress string, contractAddress string, saveRa
 			}
 			err := m.InsertRawTxResponse(*tx)
 			if err != nil {
-				m.logger.Error().Err(err).Interface("details", map[string]string{
-					"tx_hash": tx.TxHash,
-					"height":  strconv.Itoa(int(tx.Height)),
-				}).Msg("failed to insert raw tx response")
+				m.logger.Error().Err(err).
+					Str("tx_hash", tx.TxHash).
+					Int64("height", tx.Height).
+					Msg("failed to insert raw tx response from osmosis")
 				continue
 			}
 		}
@@ -287,14 +285,14 @@ func (m *Monitor) RunOrders(solverAddress string, contractAddress string, saveRa
 		}
 		err := m.InsertOrderFilled(tx)
 		if err != nil {
-			m.logger.Error().Err(err).Interface("details", map[string]string{
-				"tx_hash":       tx.TxHash,
-				"filler":        tx.Filler,
-				"amount_in":     tx.AmountIn,
-				"amount_out":    tx.AmountOut,
-				"source_domain": tx.SourceDomain,
-				"height":        strconv.Itoa(int(tx.Height)),
-			}).Msg("failed to insert order filled")
+			m.logger.Error().Err(err).
+				Str("tx_hash", tx.TxHash).
+				Str("filler", tx.Filler).
+				Str("amount_in", tx.AmountIn).
+				Str("amount_out", tx.AmountOut).
+				Str("source_domain", tx.SourceDomain).
+				Int64("height", tx.Height).
+				Msg("failed to insert order filled from osmosis")
 			continue
 		}
 		if solverAddress != "" && tx.Filler == solverAddress {
@@ -302,11 +300,11 @@ func (m *Monitor) RunOrders(solverAddress string, contractAddress string, saveRa
 				Str("tx_hash", tx.TxHash).
 				Int("height", int(tx.Height)).
 				Int("revenue", int(tx.SolverRevenue)).
-				Msg("monitored solver filled order")
+				Msg("monitored solver filled order on osmosis")
 		}
 		saved++
 	}
-	m.logger.Info().Int("count", saved).Msg("saved order fills")
+	m.logger.Info().Int("count", saved).Msg("saved solver fill orders from osmosis")
 }
 
 func (m *Monitor) GetLatestHeight() int {

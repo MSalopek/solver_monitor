@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"flag"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -99,12 +101,32 @@ func main() {
 		return
 	}
 
-	log.Logger.Info().Strs("details", []string{
+	log.Logger.Debug().Strs("details", []string{
 		"solver address", *solverAddress,
 		"contract address", *contractAddress,
 		"interval", strconv.Itoa(*interval)}).Msg("monitor started")
-	// there's no do while loop in go, so we just run the orders once
-	monitor.RunOrders(*solverAddress, *contractAddress, *saveRawResponses)
+
+	var wg sync.WaitGroup
+	// there's no do while loop in go, so we just run the orders once on startup
+	log.Logger.Info().Msg("initializing state and fetching txs")
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		monitor.RunOrders(*solverAddress, *contractAddress, *saveRawResponses)
+	}()
+	go func() {
+		defer wg.Done()
+		monitor.RunArbitrumTxHistory(*saveRawResponses)
+	}()
+	go func() {
+		defer wg.Done()
+		monitor.RunEthereumTxHistory(*saveRawResponses)
+	}()
+	wg.Wait()
+	log.Logger.Info().Msg("initial state and txs fetched -- starting cron")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	ticker := time.NewTicker(time.Duration(*interval) * time.Minute)
 	defer ticker.Stop()
@@ -115,9 +137,28 @@ func main() {
 	for {
 		select {
 		case <-ticker.C:
-			monitor.RunOrders(*solverAddress, *contractAddress, *saveRawResponses)
+			log.Logger.Debug().Msg("interval tick -- fetching txs")
+			wg.Add(3)
+			go func() {
+				defer wg.Done()
+				monitor.RunOrders(*solverAddress, *contractAddress, *saveRawResponses)
+			}()
+			go func() {
+				defer wg.Done()
+				monitor.RunArbitrumTxHistory(*saveRawResponses)
+			}()
+			go func() {
+				defer wg.Done()
+				monitor.RunEthereumTxHistory(*saveRawResponses)
+			}()
 		case <-sigs:
 			log.Info().Msg("shutdown signal received")
+			cancel() // Cancel the context
+			log.Info().Msg("waiting for ongoing operations to complete...")
+			wg.Wait() // Wait for any running goroutines to finish
+			return
+		case <-ctx.Done():
+			log.Info().Msg("context cancelled")
 			return
 		}
 	}

@@ -2,7 +2,10 @@ package monitor
 
 import (
 	"database/sql"
+	"encoding/json"
 	"log"
+	"math/big"
+	"strconv"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -26,6 +29,16 @@ type DbTxResponse struct {
 	Height     int64  `json:"height"`
 	Valid      bool   `json:"valid"`
 	TxResponse []byte `json:"tx_response"`
+}
+
+type DbEthTxResponse struct {
+	TxHash     string `json:"tx_hash"`
+	Height     int64  `json:"height"`
+	Timestamp  int64  `json:"timestamp"`
+	GasUsedWei int64  `json:"gas_used_wei"` // value in wei -> gasUsed * gasPrice
+	Valid      bool   `json:"valid"`
+	Network    string `json:"network"`
+	TxResponse []byte `json:"tx_response"` // raw response so we can fallback to local stores if we need to recover or sth
 }
 
 func InitDB(db *sql.DB) {
@@ -59,6 +72,23 @@ func InitDB(db *sql.DB) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS eth_tx_responses (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			tx_hash TEXT,
+			height INTEGER,
+			timestamp INTEGER,
+			gas_used_wei INTEGER,
+			network TEXT,
+			valid BOOLEAN,
+			tx_response TEXT
+		)
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 }
 
 func (m *Monitor) InsertRawTxResponse(txResponse DbTxResponse) error {
@@ -68,6 +98,48 @@ func (m *Monitor) InsertRawTxResponse(txResponse DbTxResponse) error {
 	`, txResponse.TxHash, txResponse.Height, txResponse.TxResponse, txResponse.Valid)
 
 	return err
+}
+
+func (m *Monitor) InsertEthTxResponse(txResponse EthTxDetails, network string, storeRawResponse bool) error {
+	timestamp, err := strconv.Atoi(txResponse.TimeStamp)
+	if err != nil {
+		return err
+	}
+	height, err := strconv.Atoi(txResponse.BlockNumber)
+	if err != nil {
+		return err
+	}
+	rawResponse := []byte{}
+	if storeRawResponse {
+		rawResponse, err = json.Marshal(txResponse)
+		if err != nil {
+			return err
+		}
+	}
+	// gas used is kept as a string because it's a big number (uint256)
+	// any calculations will be done in the app (in go code) becasue sqlite doesn't support big numbers
+	gasPrice := new(big.Int)
+	gasPrice.SetString(txResponse.GasPrice, 10)
+	actualGasUsedWei := new(big.Int)
+	actualGasUsedWei.SetString(txResponse.GasUsed, 10) // Parse string as base 10
+	actualGasUsedWei.Mul(actualGasUsedWei, gasPrice)
+	_, err = m.db.Exec(`
+		INSERT INTO eth_tx_responses (tx_hash, height, timestamp, gas_used_wei, network, valid, tx_response)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, txResponse.Hash, height, timestamp, actualGasUsedWei.String(), network, txResponse.IsError, rawResponse)
+	return err
+}
+
+func (m *Monitor) GetLatestEthHeight(network string) (int64, error) {
+	row := m.db.QueryRow(`
+		SELECT height FROM eth_tx_responses WHERE network = ? ORDER BY height DESC LIMIT 1
+	`, network)
+	var height int64
+	err := row.Scan(&height)
+	if err != nil {
+		return 0, err
+	}
+	return height, nil
 }
 
 func (m *Monitor) InsertOrderFilled(order DbOrderFilled) error {

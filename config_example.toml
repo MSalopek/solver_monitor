@@ -1,0 +1,19 @@
+[arbitrum]
+type = "indexer"
+key = "<api key>"
+api_url = "https://api.arbiscan.io/api"
+usdc_address = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+address = "<solver account address eth 0x format>"
+
+[ethereum]
+type = "indexer"
+key = "<api key>"
+api_url = "https://api.etherscan.io/api"
+usdc_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+address = "<solver account address eth 0x format>"
+
+[osmosis]
+type = "node"
+api_url = "<node api url>"
+usdc_address = "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"
+address = "<solver account address in osmo bech32"
