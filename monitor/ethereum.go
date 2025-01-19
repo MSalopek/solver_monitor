@@ -73,7 +73,7 @@ func (m *Monitor) RunArbitrumTxHistory(saveRawResponses bool) {
 	}
 	latestHeight, err := m.GetLatestEthHeight(ARBITRUM_NETWORK)
 	if err != nil {
-		m.logger.Warn().Err(err).Msg("failed to get latest arbitrum height")
+		m.logger.Warn().Msg("failed to get latest arbitrum height -- starting from 0")
 	}
 
 	inserted := 0
@@ -121,7 +121,7 @@ func (m *Monitor) RunEthereumTxHistory(saveRawResponses bool) {
 	}
 	latestHeight, err := m.GetLatestEthHeight(ETHEREUM_NETWORK)
 	if err != nil {
-		m.logger.Warn().Err(err).Msg("failed to get latest ethereum height")
+		m.logger.Warn().Msg("failed to get latest ethereum height -- starting from 0")
 	}
 
 	inserted := 0

@@ -26,11 +26,11 @@ func (s *Server) RunWithContext(ctx context.Context, addr string) error {
 	router.Use(gin.Recovery())
 
 	// Setup routes
-	router.GET("/balances/latest", s.getLatestBalances)
-	router.GET("/balances/range", s.getBalancesInTimeRange)
 	router.GET("/stats/orders_filled", s.getOrdersFilledStats)
+	router.GET("/stats/fees", s.getFeesStats)
+	router.GET("/balances/latest", s.getLatestBalances)
 	// TODO: needs pagination so I'm temporarily removing this
-	// router.GET("/stats/fees", s.getFeesStats)
+	// router.GET("/balances/range", s.getBalancesInTimeRange)
 
 	srv := &http.Server{
 		Addr:    addr,

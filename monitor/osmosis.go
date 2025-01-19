@@ -398,7 +398,7 @@ func (m *Monitor) GetLatestHeight() int {
 	var height int
 	err := m.db.QueryRow("SELECT MAX(height) FROM tx_data").Scan(&height)
 	if err != nil {
-		m.logger.Error().Err(err).Msg("failed to get latest height")
+		m.logger.Warn().Msg("failed to get osmosis latest height -- starting from 0")
 		return 0
 	}
 	return height
