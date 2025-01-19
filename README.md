@@ -135,3 +135,46 @@ curl localhost:8080/balances/latest | jq .
   }
 }
 ```
+
+## Fill stats
+
+### Endpoint `/stats/orders_filled/fill_stats`
+
+Returns min/max fill amount and min/max revenues accross all known networks. Highest grossing orders are included in the response.
+
+```shell
+curl 'localhost:8080/stats/orders_filled/fill_stats?filler=<osmosis address>' | jq .
+
+{
+  "orders": {
+    "average_revenue": "0.5998812291666666",
+    "average_fill": "124.25637870833333",
+    "max_fill": "500.000678", # across all networks
+    "max_revenue": "20.272712", # across all networks
+    "min_fill": "1", # across all networks
+    "min_revenue": "0.061", # across all networks
+    "max_fill_details": [ # for each network
+      {
+        "tx_hash": "...",
+        "amount_in": "500.000678",
+        "amount_out": "499.440677",
+        "network": "arbitrum",
+        "solver_revenue": "0.560001",
+        "height": 27853947,
+        "ingestion_timestamp": "2025-01-19T18:17:41.239743+01:00"
+      }
+    ],
+    "max_revenue_details": [ # for each network
+      {
+        "tx_hash": "...",
+        "amount_in": "500.000678",
+        "amount_out": "499.440677",
+        "network": "arbitrum",
+        "solver_revenue": "0.560001",
+        "height": 27853947,
+        "ingestion_timestamp": "2025-01-19T18:17:41.239743+01:00"
+      }
+    ]
+  }
+}
+```

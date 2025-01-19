@@ -27,6 +27,7 @@ func (s *Server) RunWithContext(ctx context.Context, addr string) error {
 
 	// Setup routes
 	router.GET("/stats/orders_filled", s.getOrdersFilledStats)
+	router.GET("/stats/orders_filled/fill_stats", s.getFillStats)
 	router.GET("/stats/fees", s.getFeesStats)
 	router.GET("/balances/latest", s.getLatestBalances)
 	// TODO: needs pagination so I'm temporarily removing this
@@ -232,4 +233,19 @@ func (s *Server) getFeesStats(c *gin.Context) {
 
 	// Parameters are optional, pass them to monitor as is
 	c.JSON(http.StatusOK, gin.H{"fees": stats})
+}
+
+func (s *Server) getFillStats(c *gin.Context) {
+	filler := c.Query("filler")
+	if filler == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "filler address is required"})
+		return
+	}
+
+	response, err := s.monitor.GetDbFillStats(filler)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get stats"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"orders": response})
 }
