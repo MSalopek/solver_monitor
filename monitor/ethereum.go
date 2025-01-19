@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/shopspring/decimal"
 )
@@ -52,6 +53,12 @@ type EthScanTxListResponse struct {
 	Status  string         `json:"status"`
 	Message string         `json:"message"`
 	Result  []EthTxDetails `json:"result"`
+}
+
+type EthBalanceResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Result  string `json:"result"` // token balance -> 18 decimals for ETH, 6 decimals for USDC
 }
 
 func (m *Monitor) RunArbitrumTxHistory(saveRawResponses bool) {
@@ -150,6 +157,140 @@ func (m *Monitor) RunEthereumTxHistory(saveRawResponses bool) {
 		Msg("finished processing ETHEREUM txs history")
 }
 
+// ethereum balances are handled as strings and stored as strings in the db
+// sqlite cannot store 256 bit integers, so we use strings to get around that
+func (m *Monitor) RunEthereumBalances() {
+	apiUrl := m.cfg.Ethereum.ApiUrl
+	address := m.cfg.Ethereum.Address
+	apiKey := m.cfg.Ethereum.Key
+	useTs := time.Now()
+
+	ethWei, err := m.getEthereumBalance(apiUrl, address, apiKey, "")
+	if err != nil {
+		m.logger.Error().Err(err).
+			Str("address", address).
+			Str("network", ETHEREUM_NETWORK).
+			Msg("failed to get ETH balance")
+	}
+
+	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Ethereum.UsdcAddress)
+	if err != nil {
+		m.logger.Error().Err(err).
+			Str("address", address).
+			Str("network", ETHEREUM_NETWORK).
+			Msg("failed to get USDC balance")
+	}
+
+	if ethWei != "" {
+		ethBalance := DbBalance{
+			Timestamp: useTs.Unix(),
+			Balance:   ethWei,
+			Exponent:  18,
+			Token:     "ETH",
+			Address:   address,
+			Network:   ETHEREUM_NETWORK,
+		}
+		if err := m.InsertBalance(ethBalance); err != nil {
+			m.logger.Error().Err(err).Str("network", ETHEREUM_NETWORK).Msg("failed to insert balance")
+		}
+
+		if ethDecimal, err := decimal.NewFromString(ethWei); err == nil {
+			m.logger.Info().
+				Str("ETH", ethDecimal.Shift(-18).String()).
+				Str("network", ETHEREUM_NETWORK).
+				Str("datetime", useTs.Format(time.RFC3339)).
+				Msg("current balance")
+		}
+	}
+
+	if usdc != "" {
+		usdcBalance := DbBalance{
+			Timestamp: useTs.Unix(),
+			Balance:   usdc,
+			Exponent:  6,
+			Token:     "USDC",
+			Address:   address,
+			Network:   ETHEREUM_NETWORK,
+		}
+		if err := m.InsertBalance(usdcBalance); err != nil {
+			m.logger.Error().Err(err).Str("network", ETHEREUM_NETWORK).Msg("failed to insert balance")
+		}
+		if usdcDecimal, err := decimal.NewFromString(usdc); err == nil {
+			m.logger.Info().
+				Str("USDC", usdcDecimal.Shift(-6).String()).
+				Str("network", ETHEREUM_NETWORK).
+				Str("datetime", useTs.Format(time.RFC3339)).
+				Msg("current balance")
+		}
+	}
+}
+
+func (m *Monitor) RunArbitrumBalances() {
+	apiUrl := m.cfg.Arbitrum.ApiUrl
+	address := m.cfg.Arbitrum.Address
+	apiKey := m.cfg.Arbitrum.Key
+	useTs := time.Now()
+
+	ethWei, err := m.getEthereumBalance(apiUrl, address, apiKey, "")
+	if err != nil {
+		m.logger.Error().Err(err).
+			Str("address", address).
+			Str("network", ARBITRUM_NETWORK).
+			Msg("failed to get ETH balance")
+	}
+
+	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Arbitrum.UsdcAddress)
+	if err != nil {
+		m.logger.Error().Err(err).
+			Str("address", address).
+			Str("network", ARBITRUM_NETWORK).
+			Msg("failed to get USDC balance")
+	}
+
+	if ethWei != "" {
+		ethBalance := DbBalance{
+			Timestamp: useTs.Unix(),
+			Balance:   ethWei,
+			Exponent:  18,
+			Token:     "ETH",
+			Address:   address,
+			Network:   ARBITRUM_NETWORK,
+		}
+		if err := m.InsertBalance(ethBalance); err != nil {
+			m.logger.Error().Err(err).Str("network", ARBITRUM_NETWORK).Msg("failed to insert balance")
+		}
+
+		if ethDecimal, err := decimal.NewFromString(ethWei); err == nil {
+			m.logger.Info().
+				Str("ETH", ethDecimal.Shift(-18).String()).
+				Str("network", ARBITRUM_NETWORK).
+				Str("datetime", useTs.Format(time.RFC3339)).
+				Msg("current balance")
+		}
+	}
+
+	if usdc != "" {
+		usdcBalance := DbBalance{
+			Timestamp: useTs.Unix(),
+			Balance:   usdc,
+			Exponent:  6,
+			Token:     "USDC",
+			Address:   address,
+			Network:   ARBITRUM_NETWORK,
+		}
+		if err := m.InsertBalance(usdcBalance); err != nil {
+			m.logger.Error().Err(err).Str("network", ARBITRUM_NETWORK).Msg("failed to insert balance")
+		}
+		if usdcDecimal, err := decimal.NewFromString(usdc); err == nil {
+			m.logger.Info().
+				Str("USDC", usdcDecimal.Shift(-6).String()).
+				Str("network", ARBITRUM_NETWORK).
+				Str("datetime", useTs.Format(time.RFC3339)).
+				Msg("current balance")
+		}
+	}
+}
+
 func (m *Monitor) getGasUsed(txs []EthTxDetails) *big.Int {
 	total := new(big.Int)
 	for _, tx := range txs {
@@ -210,6 +351,59 @@ func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string) (
 	}
 
 	return data.Result, nil
+}
+
+// getEthereumBalance returns the balance of the given address for the given tokencontract address
+// if contract address == "" then it returns the ETH balance in wei
+// NOTE:
+// * USDC is always 6 decimals
+// * ETH is always 18 decimals
+// * different L2s use different contract addresses for USDC
+func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress string) (string, error) {
+	headers := map[string]string{"Accept": "application/json"}
+
+	params := url.Values{}
+	params.Add("module", "account")
+	params.Add("address", address)
+	params.Add("tag", "latest")
+	params.Add("apikey", apiKey)
+
+	if contractAddress != "" {
+		params.Add("contractaddress", contractAddress)
+		params.Add("action", "tokenbalance")
+	} else {
+		params.Add("action", "balance")
+	}
+
+	url := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+
+	for key, value := range headers {
+		req.Header.Add(key, value)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	var data EthBalanceResponse
+	if err := json.Unmarshal(body, &data); err != nil {
+		return "", err
+	}
+
+	return data.Result, nil
+
 }
 
 func (m *Monitor) GetEthereumTxsFromFile(path string, network string) ([]EthTxDetails, error) {

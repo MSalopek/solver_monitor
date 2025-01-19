@@ -41,6 +41,15 @@ type DbEthTxResponse struct {
 	TxResponse []byte `json:"tx_response"` // raw response so we can fallback to local stores if we need to recover or sth
 }
 
+type DbBalance struct {
+	Timestamp int64  `json:"timestamp"`
+	Balance   string `json:"balance"`
+	Address   string `json:"address"`
+	Exponent  int64  `json:"exponent"`
+	Token     string `json:"token"`
+	Network   string `json:"network"`
+}
+
 func InitDB(db *sql.DB) {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS tx_data (
@@ -89,6 +98,29 @@ func InitDB(db *sql.DB) {
 		log.Fatal(err)
 	}
 
+	_, err = db.Exec(`
+	CREATE TABLE IF NOT EXISTS balances (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		timestamp INTEGER,
+		address TEXT,
+		balance TEXT,
+		exponent INTEGER,
+		token TEXT,
+		network TEXT
+	)
+`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+}
+
+func (m *Monitor) InsertBalance(balance DbBalance) error {
+	_, err := m.db.Exec(`
+		INSERT INTO balances (timestamp, balance, exponent, token, network, address)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, balance.Timestamp, balance.Balance, balance.Exponent, balance.Token, balance.Network, balance.Address)
+	return err
 }
 
 func (m *Monitor) InsertRawTxResponse(txResponse DbTxResponse) error {

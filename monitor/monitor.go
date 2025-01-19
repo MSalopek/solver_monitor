@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"os"
+	"sync"
 
 	"cosmossdk.io/x/tx/decode"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
@@ -18,16 +19,26 @@ import (
 )
 
 type ChainEntry struct {
-	Key      string `json:"key,omitempty" yaml:"key,omitempty" toml:"key,omitempty"`
-	ApiUrl   string `json:"api_url,omitempty" yaml:"api_url,omitempty" toml:"api_url,omitempty"`
-	UsdcAddr string `json:"usdc_address,omitempty" yaml:"usdc_address,omitempty" toml:"usdc_address,omitempty"`
-	Address  string `json:"address,omitempty" yaml:"address,omitempty" toml:"address,omitempty"`
+	Key         string `json:"key,omitempty" yaml:"key,omitempty" toml:"key,omitempty"`
+	ApiUrl      string `json:"api_url,omitempty" yaml:"api_url,omitempty" toml:"api_url,omitempty"`
+	UsdcAddress string `json:"usdc_address,omitempty" yaml:"usdc_address,omitempty" toml:"usdc_address,omitempty"`
+	Address     string `json:"address,omitempty" yaml:"address,omitempty" toml:"address,omitempty"`
+}
+
+type SolverConfig struct {
+	SolverAddress   string `json:"solver_address,omitempty" yaml:"solver_address,omitempty" toml:"solver_address,omitempty"`
+	ContractAddress string `json:"contract_address,omitempty" yaml:"contract_address,omitempty" toml:"contract_address,omitempty"`
+}
+
+type OsmosisConfig struct {
+	ChainEntry
+	SolverConfig
 }
 
 type Config struct {
-	Arbitrum ChainEntry `json:"arbitrum,omitempty" yaml:"arbitrum,omitempty" toml:"arbitrum,omitempty"`
-	Ethereum ChainEntry `json:"ethereum,omitempty" yaml:"ethereum,omitempty" toml:"ethereum,omitempty"`
-	Osmosis  ChainEntry `json:"osmosis,omitempty" yaml:"osmosis,omitempty" toml:"osmosis,omitempty"`
+	Arbitrum ChainEntry    `json:"arbitrum,omitempty" yaml:"arbitrum,omitempty" toml:"arbitrum,omitempty"`
+	Ethereum ChainEntry    `json:"ethereum,omitempty" yaml:"ethereum,omitempty" toml:"ethereum,omitempty"`
+	Osmosis  OsmosisConfig `json:"osmosis,omitempty" yaml:"osmosis,omitempty" toml:"osmosis,omitempty"`
 }
 
 func MustLoadConfig(path string) *Config {
@@ -69,6 +80,34 @@ func NewMonitor(db *sql.DB, cfg *Config, logger *zerolog.Logger, apiUrl string) 
 		logger:            logger,
 		apiUrl:            apiUrl,
 	}
+}
+
+func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
+	wg.Add(6)
+	go func() {
+		defer wg.Done()
+		m.RunEthereumBalances()
+	}()
+	go func() {
+		defer wg.Done()
+		m.RunArbitrumBalances()
+	}()
+	go func() {
+		defer wg.Done()
+		m.RunOrders(saveRawResponses)
+	}()
+	go func() {
+		defer wg.Done()
+		m.RunArbitrumTxHistory(saveRawResponses)
+	}()
+	go func() {
+		defer wg.Done()
+		m.RunEthereumTxHistory(saveRawResponses)
+	}()
+	go func() {
+		defer wg.Done()
+		m.RunOsmosisBalances()
+	}()
 }
 
 func (m *Monitor) DecodeTxResponse(r *sdktypes.TxResponse) []FillOrderEnvelope {

@@ -21,11 +21,9 @@ import (
 
 const API_URL = "https://osmosis-lcd.quickapi.com"
 const defaultContractAddress = "osmo1vy34lpt5zlj797w7zqdta3qfq834kapx88qtgudy7jgljztj567s73ny82"
-const defaultSolverAddress = "osmo1xjuvq8mlmhc24l2ewya2uyyj9t6r0dcfdhza6h"
 
 func main() {
 	interval := flag.Int("interval", 1, "Polling interval in minutes")
-	solverAddress := flag.String("solver-address", defaultSolverAddress, "Solver address to monitor. This will be used to filter transactions.")
 	contractAddress := flag.String("contract-address", defaultContractAddress, "Osmosis skip-go-fast contract address to monitor.")
 	logLevel := flag.String("log-level", "INFO", "Set the logging level")
 	logFormat := flag.String("log-format", "json", "Set the log output format")
@@ -102,28 +100,15 @@ func main() {
 	}
 
 	log.Logger.Debug().Strs("details", []string{
-		"solver address", *solverAddress,
 		"contract address", *contractAddress,
 		"interval", strconv.Itoa(*interval)}).Msg("monitor started")
 
 	var wg sync.WaitGroup
 	// there's no do while loop in go, so we just run the orders once on startup
 	log.Logger.Info().Msg("initializing state and fetching txs")
-	wg.Add(3)
-	go func() {
-		defer wg.Done()
-		monitor.RunOrders(*solverAddress, *contractAddress, *saveRawResponses)
-	}()
-	go func() {
-		defer wg.Done()
-		monitor.RunArbitrumTxHistory(*saveRawResponses)
-	}()
-	go func() {
-		defer wg.Done()
-		monitor.RunEthereumTxHistory(*saveRawResponses)
-	}()
+	monitor.RunAll(&wg, *saveRawResponses)
 	wg.Wait()
-	log.Logger.Info().Msg("initial state and txs fetched -- starting cron")
+	log.Logger.Info().Int("interval_minutes", *interval).Msg("initial state and txs fetched -- running cron")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -138,19 +123,7 @@ func main() {
 		select {
 		case <-ticker.C:
 			log.Logger.Debug().Msg("interval tick -- fetching txs")
-			wg.Add(3)
-			go func() {
-				defer wg.Done()
-				monitor.RunOrders(*solverAddress, *contractAddress, *saveRawResponses)
-			}()
-			go func() {
-				defer wg.Done()
-				monitor.RunArbitrumTxHistory(*saveRawResponses)
-			}()
-			go func() {
-				defer wg.Done()
-				monitor.RunEthereumTxHistory(*saveRawResponses)
-			}()
+			monitor.RunAll(&wg, *saveRawResponses)
 		case <-sigs:
 			log.Info().Msg("shutdown signal received")
 			cancel() // Cancel the context
@@ -162,5 +135,4 @@ func main() {
 			return
 		}
 	}
-
 }

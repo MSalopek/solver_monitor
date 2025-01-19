@@ -9,12 +9,24 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
+	sdktypes "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/tx"
+	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
+	"github.com/shopspring/decimal"
 )
+
+type TxsFile struct {
+	TxResponses []interface{} `json:"tx_responses"`
+	Txs         []interface{} `json:"txs"`
+}
+
+type CosmosBalances []sdktypes.Coin
 
 func GetAllOsmosisOrders(contract_address string, apiUrl string) {
 	allTxs := []interface{}{}
@@ -176,11 +188,6 @@ func (m *Monitor) GetNewOrders(height int, contractAddress string) ([]DbOrderFil
 	return orders, responses, nil
 }
 
-type TxsFile struct {
-	TxResponses []interface{} `json:"tx_responses"`
-	Txs         []interface{} `json:"txs"`
-}
-
 func (m *Monitor) OrdersFromFile(filePath string) ([]DbOrderFilled, []*DbTxResponse, error) {
 	path := filePath
 	if path == "" {
@@ -237,7 +244,10 @@ func (m *Monitor) OrdersFromFile(filePath string) ([]DbOrderFilled, []*DbTxRespo
 	return orders, responses, nil
 }
 
-func (m *Monitor) RunOrders(solverAddress string, contractAddress string, saveRawResponses bool) {
+func (m *Monitor) RunOrders(saveRawResponses bool) {
+	contractAddress := m.cfg.Osmosis.ContractAddress
+	solverAddress := m.cfg.Osmosis.SolverAddress
+
 	minHeight, maxHeight := int64(0), int64(0)
 	latestHeight := m.GetLatestHeight()
 	newOrders, rawResponses, err := m.GetNewOrders(latestHeight, contractAddress)
@@ -305,6 +315,83 @@ func (m *Monitor) RunOrders(solverAddress string, contractAddress string, saveRa
 		saved++
 	}
 	m.logger.Info().Int("count", saved).Msg("saved solver fill orders from osmosis")
+}
+
+func (m *Monitor) RunOsmosisBalances() {
+	apiUrl := m.cfg.Osmosis.ApiUrl
+	address := m.cfg.Osmosis.Address
+	usdcDenom := m.cfg.Osmosis.UsdcAddress
+	useTs := time.Now()
+
+	balances, err := m.getCosmosBalance(apiUrl, address, []string{"uosmo", usdcDenom})
+	if err != nil {
+		m.logger.Error().Err(err).Str("address", address).Str("network", "osmosis").Msg("failed to get cosmos balances")
+		return
+	}
+
+	buildLog := m.logger.With().Str("network", "osmosis").Str("datetime", useTs.Format(time.RFC3339)).Logger()
+	for _, balance := range balances {
+		asDecimal := decimal.NewFromInt(balance.Amount.Int64())
+		humanReadableDenom := strings.ToUpper(balance.Denom)
+		if balance.Denom == usdcDenom {
+			humanReadableDenom = "USDC"
+		}
+		buildLog = buildLog.With().Str(strings.Replace(humanReadableDenom, "UOSMO", "OSMO", 1), asDecimal.Shift(-6).String()).Logger()
+		m.InsertBalance(DbBalance{
+			Timestamp: useTs.Unix(),
+			Balance:   balance.Amount.String(),
+			Exponent:  6,
+			Token:     humanReadableDenom,
+			Address:   address,
+			Network:   "osmosis",
+		})
+	}
+
+	buildLog.Info().Msg("current balance")
+
+}
+
+// denoms is a list of native and IBC denoms
+// e.g. ["osmo", "ibc/498A0751C798A0D9A389AA3691123DADA57DAA4FE165D5C75894505B876BA6E4"]
+func (m *Monitor) getCosmosBalance(apiUrl, address string, denoms []string) (CosmosBalances, error) {
+	headers := map[string]string{"Accept": "application/json"}
+	url := fmt.Sprintf("%s/cosmos/bank/v1beta1/balances/%s", apiUrl, address)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for key, value := range headers {
+		req.Header.Add(key, value)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var data banktypes.QueryAllBalancesResponse
+	if err := m.Codec.UnmarshalJSON(body, &data); err != nil {
+		return nil, err
+	}
+
+	balances := CosmosBalances{}
+	for _, coin := range data.Balances {
+		if slices.Contains(denoms, coin.Denom) {
+			balances = append(balances, coin)
+		}
+	}
+
+	return balances, nil
+
 }
 
 func (m *Monitor) GetLatestHeight() int {
