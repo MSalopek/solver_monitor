@@ -91,6 +91,8 @@ solver_monitor
 orders_*
 *.csv
 *.db
+*-shm
+*-wal
 
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is

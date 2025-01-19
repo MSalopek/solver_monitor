@@ -1,6 +1,6 @@
 # Usage of ./solver_monitor:
 
-```shell
+```
   -config string
     	Path to the config file (default "config.toml")
   -contract-address string
