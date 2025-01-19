@@ -44,10 +44,10 @@ type DbEthTxResponse struct {
 type DbBalance struct {
 	Timestamp int64  `json:"timestamp"`
 	Balance   string `json:"balance"`
-	Address   string `json:"address"`
-	Exponent  int64  `json:"exponent"`
+	Address   string `json:"address,omitempty"`
+	Exponent  int64  `json:"exponent,omitempty"`
 	Token     string `json:"token"`
-	Network   string `json:"network"`
+	Network   string `json:"network,omitempty"`
 }
 
 func InitDB(db *sql.DB) {

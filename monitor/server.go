@@ -77,7 +77,24 @@ func (s *Server) getLatestBalances(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"balances": balances})
+	balancesResponse := BalancesByNetworkResponse{}
+	for _, balance := range balances {
+		if _, ok := balancesResponse[balance.Network]; !ok {
+			balancesResponse[balance.Network] = []DbBalance{}
+		}
+		// rm extra data from response
+		b := DbBalance{
+			Balance:   balance.Balance,
+			Token:     balance.Token,
+			Timestamp: balance.Timestamp,
+		}
+		if asInteger != "" {
+			b.Exponent = balance.Exponent // relevant for integer response - exponent data is needed to get the correct decimal value
+		}
+		balancesResponse[balance.Network] = append(balancesResponse[balance.Network], b)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"balances": balancesResponse})
 }
 
 func (s *Server) getBalancesInTimeRange(c *gin.Context) {

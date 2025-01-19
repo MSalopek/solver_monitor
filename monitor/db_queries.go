@@ -42,6 +42,8 @@ type NetworkFeeStats struct {
 	Network      string `json:"network"`
 }
 
+type BalancesByNetworkResponse map[string][]DbBalance
+
 // if useDecimals is true, the balance is returned in decimals
 // otherwise, the balance is returned as a string
 // this means that for 10^18, the balance will be "1000000000000000000" with useDecimals = false
