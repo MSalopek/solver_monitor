@@ -112,7 +112,28 @@ func InitDB(db *sql.DB) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Create timestamp index
+	_, err = db.Exec(`
+        CREATE INDEX IF NOT EXISTS idx_balances_timestamp 
+        ON balances(timestamp)
+    `)
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	// Create composite index
+	_, err = db.Exec(`
+        CREATE INDEX IF NOT EXISTS idx_balances_composite 
+        ON balances(address, token, network, timestamp)
+    `)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = db.Exec("PRAGMA journal_mode=WAL")
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func (m *Monitor) InsertBalance(balance DbBalance) error {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -31,6 +32,9 @@ func main() {
 	saveRawResponses := flag.Bool("save-raw-tx", false, "Save raw tx responses to db")
 	dbPath := flag.String("db", "tx_data.db", "Path to the db file")
 	loadFromFile := flag.String("load-from-file", "", "Load orders from file. If provided, all other arguments are ignored.")
+	serverAddr := flag.String("server-addr", ":8080", "Server address to listen on")
+	skipInitialization := flag.Bool("skip-init", false, "Skip fetching state and txs on startup. Cron job will run on interval.")
+	serverOnly := flag.Bool("server-only", false, "Only run the server, don't fetch txs and dont start the cron job.")
 	flag.Parse()
 
 	// Set up logging
@@ -79,21 +83,21 @@ func main() {
 	}
 	defer db.Close()
 
-	monitor := monitor.NewMonitor(db, cfg, &log.Logger, API_URL)
+	m := monitor.NewMonitor(db, cfg, &log.Logger, API_URL)
 
 	// this can be done via subcommands
 	if *loadFromFile != "" {
 		log.Logger.Info().Str("file", *loadFromFile).Msg("loading orders from file")
-		orders, responses, err := monitor.OrdersFromFile(*loadFromFile)
+		orders, responses, err := m.OrdersFromFile(*loadFromFile)
 		if err != nil {
 			log.Logger.Error().Err(err).Msg("failed to load orders from file")
 			return
 		}
 		for _, o := range orders {
-			monitor.InsertOrderFilled(o)
+			m.InsertOrderFilled(o)
 		}
 		for _, r := range responses {
-			monitor.InsertRawTxResponse(*r)
+			m.InsertRawTxResponse(*r)
 		}
 		log.Logger.Info().Int("orders", len(orders)).Int("responses", len(responses)).Msg("loaded orders from file")
 		return
@@ -104,11 +108,13 @@ func main() {
 		"interval", strconv.Itoa(*interval)}).Msg("monitor started")
 
 	var wg sync.WaitGroup
-	// there's no do while loop in go, so we just run the orders once on startup
-	log.Logger.Info().Msg("initializing state and fetching txs")
-	monitor.RunAll(&wg, *saveRawResponses)
-	wg.Wait()
-	log.Logger.Info().Int("interval_minutes", *interval).Msg("initial state and txs fetched -- running cron")
+	if !*skipInitialization {
+		// there's no do while loop in go, so we just run the orders once on startup
+		log.Logger.Info().Msg("initializing state and fetching txs")
+		m.RunAll(&wg, *saveRawResponses)
+		wg.Wait()
+		log.Logger.Info().Int("interval_minutes", *interval).Msg("initial state and txs fetched -- running cron")
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -119,11 +125,23 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
+	server := monitor.NewServer(m)
+
+	// Start server in a goroutine with context after initial state and txs are fetched
+	go func() {
+		log.Info().Str("address", *serverAddr).Msg("starting HTTP server")
+		if err := server.RunWithContext(ctx, *serverAddr); err != nil && err != http.ErrServerClosed {
+			log.Fatal().Err(err).Msg("server failed to start")
+		}
+	}()
+
 	for {
 		select {
 		case <-ticker.C:
-			log.Logger.Debug().Msg("interval tick -- fetching txs")
-			monitor.RunAll(&wg, *saveRawResponses)
+			if !*serverOnly {
+				log.Logger.Debug().Msg("interval tick -- fetching txs")
+				m.RunAll(&wg, *saveRawResponses)
+			}
 		case <-sigs:
 			log.Info().Msg("shutdown signal received")
 			cancel() // Cancel the context

@@ -1,4 +1,5 @@
-Usage of ./solver_monitor:
+# Usage of ./solver_monitor:
+
 ```shell
   -config string
     	Path to the config file (default "config.toml")
@@ -16,6 +17,150 @@ Usage of ./solver_monitor:
     	Set the logging level (default "INFO")
   -save-raw-tx
     	Save raw tx responses to db
-  -solver-address string
-    	Solver address to monitor. This will be used to filter transactions.
+  -server-addr string
+    	Server address to listen on (default ":8080")
+  -server-only
+    	Only run the server, don't fetch txs and dont start the cron job.
+  -skip-init
+    	Skip fetching state and txs on startup. Cron job will run on interval.
+```
+
+# API interface
+
+## Aggregated fees
+
+### ENDPOINT: `/stats/fees`
+
+Returns fee amounts (ethereum) paid across all networks that the solver has indexed.
+
+**Params**
+
+- `as_integer` - causes all values to be returned as strings representing integer values; otherwise returns strings representing decimals
+  - usage `localhost:8080/stats/fees?as_integer=true`
+
+#### Example
+
+```shell
+curl 'localhost:8080/stats/fees' | jq .
+{
+  "fees": {
+    "total_gas_used": "0.000973216190484",
+    "total_tx_count": 50,
+    "network_stats": [
+      {
+        "total_gas_used": "0.000295746839457",
+        "tx_count": 46,
+        "network": "arbitrum"
+      },
+      {
+        "total_gas_used": "0.000677469351027",
+        "tx_count": 4,
+        "network": "ethereum"
+      }
+    ]
+  }
+}
+```
+
+## Filled orders
+
+### Endpoint `/stats/orders_filled`
+
+Returns solver fill order statistics: total orders, total revenue and revenue per-network.
+
+**Params**
+
+- `as_integer` - causes all values to be returned as strings representing integer values; otherwise returns strings representing decimals
+  - usage `localhost:8080/stats/orders_filled?filler=<osmosis-address>&as_integer=true`
+- `filler` [required] - get orders for known filler address
+
+#### Example
+
+```shell
+curl 'localhost:8080/stats/orders_filled?filler=<osmosis-address>' | jq .
+{
+  "orders_filled": {
+    "total_solver_revenue": "25.059113", # USDC
+    "total_order_count": "34",
+    "networks": [
+      {
+        "total_solver_revenue": "20.272712", # USDC
+        "order_count": "1",
+        "network": "ethereum"
+      },
+      {
+        "total_solver_revenue": "4.786401", # USDC
+        "order_count": "33",
+        "network": "arbitrum"
+      }
+    ]
+  }
+}
+```
+
+## Balances (latest)
+
+### Endpoint `/balances/latest`
+
+Returns latest balancess accross all known networks (USDC, ETH, OSMO).
+
+**Params**
+
+- `as_integer` - causes all values to be returned as strings representing integer values; otherwise returns strings representing decimals
+  - usage `localhost:8080/balances/latest?as_integer=true`
+
+```shell
+curl localhost:8080/balances/latest | jq .
+{
+  "balances": [
+    {
+      "timestamp": 1737298096,
+      "balance": "0.041421979450543",
+      "address": "<ethereum style address>",
+      "exponent": 18,
+      "token": "ETH",
+      "network": "arbitrum"
+    },
+    {
+      "timestamp": 1737298096,
+      "balance": "0.048610590561713",
+      "address": "<ethereum style address>",
+      "exponent": 18,
+      "token": "ETH",
+      "network": "ethereum"
+    },
+    {
+      "timestamp": 1737298096,
+      "balance": "1507.189797",
+      "address": "<ethereum style address>",
+      "exponent": 6,
+      "token": "USDC",
+      "network": "arbitrum"
+    },
+    {
+      "timestamp": 1737298096,
+      "balance": "2070.495685",
+      "address": "<ethereum style address>",
+      "exponent": 6,
+      "token": "USDC",
+      "network": "ethereum"
+    },
+    {
+      "timestamp": 1737298096,
+      "balance": "4.732661",
+      "address": "<osmosis address>",
+      "exponent": 6,
+      "token": "UOSMO",
+      "network": "osmosis"
+    },
+    {
+      "timestamp": 1737298096,
+      "balance": "1350.450582",
+      "address": "<osmosis address>",
+      "exponent": 6,
+      "token": "USDC",
+      "network": "osmosis"
+    }
+  ]
+}
 ```
