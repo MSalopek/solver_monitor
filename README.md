@@ -108,59 +108,30 @@ Returns latest balancess accross all known networks (USDC, ETH, OSMO).
 
 - `as_integer` - causes all values to be returned as strings representing integer values; otherwise returns strings representing decimals
   - usage `localhost:8080/balances/latest?as_integer=true`
+  - when used the `exponent` field will get added to the respones object to help with decimal conversions
 
 ```shell
 curl localhost:8080/balances/latest | jq .
 {
-  "balances": [
-    {
-      "timestamp": 1737298096,
-      "balance": "0.041421979450543",
-      "address": "<ethereum style address>",
-      "exponent": 18,
-      "token": "ETH",
-      "network": "arbitrum"
-    },
-    {
-      "timestamp": 1737298096,
-      "balance": "0.048610590561713",
-      "address": "<ethereum style address>",
-      "exponent": 18,
-      "token": "ETH",
-      "network": "ethereum"
-    },
-    {
-      "timestamp": 1737298096,
-      "balance": "1507.189797",
-      "address": "<ethereum style address>",
-      "exponent": 6,
-      "token": "USDC",
-      "network": "arbitrum"
-    },
-    {
-      "timestamp": 1737298096,
-      "balance": "2070.495685",
-      "address": "<ethereum style address>",
-      "exponent": 6,
-      "token": "USDC",
-      "network": "ethereum"
-    },
-    {
-      "timestamp": 1737298096,
-      "balance": "4.732661",
-      "address": "<osmosis address>",
-      "exponent": 6,
-      "token": "UOSMO",
-      "network": "osmosis"
-    },
-    {
-      "timestamp": 1737298096,
-      "balance": "1350.450582",
-      "address": "<osmosis address>",
-      "exponent": 6,
-      "token": "USDC",
-      "network": "osmosis"
-    }
-  ]
+  "balances": {
+    "arbitrum": [
+      {
+        "timestamp": 1737301329,
+        "balance": "0.041421979450543",
+        "token": "ETH"
+      },
+      {
+        "timestamp": 1737301329,
+        "balance": "1507.189797",
+        "token": "USDC"
+      }
+    ],
+    "ethereum": [
+      ...
+    ],
+    "osmosis": [
+      ...
+    ]
+  }
 }
 ```
