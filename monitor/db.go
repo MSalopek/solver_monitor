@@ -70,6 +70,13 @@ func InitDB(db *sql.DB) {
 	}
 
 	_, err = db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_tx_data_filler ON tx_data(filler)
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS raw_tx_responses (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			tx_hash TEXT,

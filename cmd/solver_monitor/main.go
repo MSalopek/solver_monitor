@@ -87,19 +87,7 @@ func main() {
 
 	// this can be done via subcommands
 	if *loadFromFile != "" {
-		log.Logger.Info().Str("file", *loadFromFile).Msg("loading orders from file")
-		orders, responses, err := m.OrdersFromFile(*loadFromFile)
-		if err != nil {
-			log.Logger.Error().Err(err).Msg("failed to load orders from file")
-			return
-		}
-		for _, o := range orders {
-			m.InsertOrderFilled(o)
-		}
-		for _, r := range responses {
-			m.InsertRawTxResponse(*r)
-		}
-		log.Logger.Info().Int("orders", len(orders)).Int("responses", len(responses)).Msg("loaded orders from file")
+		m.LoadFromFile(*loadFromFile, *saveRawResponses)
 		return
 	}
 
@@ -129,7 +117,7 @@ func main() {
 
 	// Start server in a goroutine with context after initial state and txs are fetched
 	go func() {
-		log.Info().Str("address", *serverAddr).Msg("starting HTTP server")
+		log.Info().Str("address", *serverAddr).Msg("HTTP server started")
 		if err := server.RunWithContext(ctx, *serverAddr); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("server failed to start")
 		}

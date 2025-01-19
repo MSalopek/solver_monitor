@@ -268,7 +268,7 @@ func (m *Monitor) RunOrders(saveRawResponses bool) {
 	}
 
 	if int64(latestHeight) >= maxHeight {
-		m.logger.Info().Msg("no new solver fill orders on osmosis")
+		m.logger.Info().Msg("no new solver fill orders on osmosis -- skipping processing")
 		return
 	}
 

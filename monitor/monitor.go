@@ -139,3 +139,49 @@ func (m *Monitor) DecodeTxResponse(r *sdktypes.TxResponse) []FillOrderEnvelope {
 	}
 	return fillOrders
 }
+
+func (m *Monitor) LoadFromFile(path string, saveRawResponses bool) {
+	m.logger.Info().Str("file", path).Msg("loading orders from file")
+	orders, responses, err := m.OrdersFromFile(path)
+	if err != nil {
+		m.logger.Error().Err(err).Msg("failed to load orders from file")
+		return
+	}
+	minHeight, maxHeight := int64(0), int64(0)
+	latestHeight := m.GetLatestHeight()
+	if len(orders) > 0 {
+		minHeight, maxHeight = getMinMaxHeight(orders)
+		m.logger.Info().
+			Int("count", len(orders)).
+			Int64("min_height", minHeight).
+			Int64("max_height", maxHeight).
+			Msg("loaded orders from file")
+	} else {
+		m.logger.Info().Msg("no orders in file")
+		return
+	}
+	for _, o := range orders {
+		if int64(latestHeight) >= o.Height {
+			m.logger.Debug().
+				Str("tx_hash", o.TxHash).
+				Int64("height", o.Height).
+				Msg("skipping order filled from osmosis")
+			continue
+		}
+		err := m.InsertOrderFilled(o)
+		if err != nil {
+			m.logger.Error().Err(err).
+				Str("tx_hash", o.TxHash).
+				Int64("height", o.Height).
+				Int64("last_max_height", maxHeight).
+				Msg("failed to insert order filled from osmosis")
+			continue
+		}
+	}
+	if saveRawResponses {
+		for _, r := range responses {
+			m.InsertRawTxResponse(*r)
+		}
+	}
+	m.logger.Info().Int("orders", len(orders)).Int("responses", len(responses)).Msg("wrote orders from file")
+}

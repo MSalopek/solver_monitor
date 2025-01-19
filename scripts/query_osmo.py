@@ -18,20 +18,21 @@ def get_all_orders():
     query = "wasm._contract_address='osmo1vy34lpt5zlj797w7zqdta3qfq834kapx88qtgudy7jgljztj567s73ny82' AND wasm.action='order_filled'"
 
     attempts = 0
-    max_attempts = 25
+    max_attempts = 50
     timestamp = int(time.time())
     total = 0
     while attempts < max_attempts:
         params = {
-            "limit": "100",
-            "page": attempts + 1,
             "query": query,
+            "page": attempts + 1,
+            "order_by": "ORDER_BY_DESC",
+            "limit": "100",
         }
 
         encoded_params = urlencode(params)
         url = f"{base_url}?{encoded_params}"
         # print(url)
-        response = requests.get(f"{base_url}?{encoded_params}", headers=headers)
+        response = requests.get(url, headers=headers)
         data = response.json()
 
         if data.get("total"):
@@ -46,13 +47,9 @@ def get_all_orders():
 
         all_txs.extend(data["txs"])
         all_tx_responses.extend(data["tx_responses"])
-        print("GOT", len(data["tx_responses"]))
-
-        filename = f"./orders/orders_{timestamp}_{attempts}.json"
         attempts += 1
-        time.sleep(1)
 
-    with open(filename, "w") as f:
+    with open(f"orders_{timestamp}.json", "w") as f:
         json.dump({"txs": all_txs, "tx_responses": all_tx_responses}, f)
 
 
@@ -72,7 +69,7 @@ def handle_files():
                 txs_details.append(
                     OrderFilled(
                         tx_hash=tx["txhash"],
-                        sender=msg["sender"],
+                        sender=msg["msg"]["fill_order"]["order"]["sender"],
                         amount_in=msg["msg"]["fill_order"]["order"]["amount_in"],
                         amount_out=msg["msg"]["fill_order"]["order"]["amount_out"],
                         source_domain=msg["msg"]["fill_order"]["order"][
@@ -84,6 +81,7 @@ def handle_files():
                         - int(msg["msg"]["fill_order"]["order"]["amount_out"]),
                         height=tx["height"],
                         code=tx["code"],
+                        filler=msg["msg"]["fill_order"]["filler"],
                     )
                 )
     with open("txs_details.json", "w") as f:
@@ -93,11 +91,3 @@ def handle_files():
 
 if __name__ == "__main__":
     get_all_orders()
-    # init_db()
-    txs_details = handle_files()
-    print(txs_details)
-    dedupe = list(set([tx.tx_hash for tx in txs_details]))
-    print(len(dedupe), len(txs_details))
-
-    # for tx in txs_details:
-    #     insert_order_filled(tx)
