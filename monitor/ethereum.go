@@ -22,6 +22,9 @@ const (
 
 	ETHEREUM_NETWORK  = "ethereum"
 	ETHEREUM_CHAIN_ID = 1
+
+	BASE_NETWORK  = "base"
+	BASE_CHAIN_ID = 8453
 )
 
 type EthTxDetails struct {
