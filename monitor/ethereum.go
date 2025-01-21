@@ -65,6 +65,72 @@ type EthBalanceResponse struct {
 	Result  string `json:"result"` // token balance -> 18 decimals for ETH, 6 decimals for USDC
 }
 
+func (m *Monitor) RunBaseTxHistory(saveRawResponses bool) {
+	apiUrl := m.cfg.Base.ApiUrl
+	address := m.cfg.Base.Address
+	apiKey := m.cfg.Base.Key
+
+	txs, err := m.getEthereumTxs(apiUrl, address, apiKey)
+	if err != nil {
+		m.logger.Error().Err(err).Msg("failed to get BASE txs")
+		return
+	}
+	latestHeight, err := m.GetLatestEthHeight(BASE_NETWORK)
+	if err != nil {
+		m.logger.Warn().Msg("failed to get latest BASE height -- starting from 0")
+	}
+
+	priceUsd, err := m.GetLatestUsdTokenPriceDecimal(COINGECKO_ETHEREUM_ID)
+	if err != nil {
+		m.logger.Error().Err(err).Msg("failed to get latest USD token price")
+		return
+	}
+
+	inserted := 0
+	failed := 0
+	for _, tx := range txs {
+		height, err := strconv.ParseInt(tx.BlockNumber, 10, 64)
+		if err != nil {
+			m.logger.Error().Err(err).Msg("failed to parse block number")
+			continue
+		}
+		if height <= latestHeight {
+			continue
+		}
+
+		// just report the error if it happens
+		// this will return zero decimal if there is an error so it's ok
+		gasUsedUsd, err := calculateGasUSD(priceUsd, tx.GasUsed, tx.GasPrice)
+		if err != nil {
+			m.logger.Error().Err(err).
+				Str("tx_hash", tx.Hash).
+				Str("block_number", tx.BlockNumber).
+				Str("network", BASE_NETWORK).
+				Msg("failed to calculate gas used USD")
+		}
+
+		tx.GasUsedUsd = gasUsedUsd.String()
+		tx.Network = BASE_NETWORK
+		if err := m.InsertEthTxResponse(tx, BASE_NETWORK, saveRawResponses); err != nil {
+			m.logger.Error().Err(err).
+				Str("tx_hash", tx.Hash).
+				Str("block_number", tx.BlockNumber).
+				Str("network", BASE_NETWORK).
+				Msg("failed to insert BASE tx")
+			failed++
+			continue
+		}
+		inserted++
+	}
+
+	totalGasUsed := m.getGasUsedForTxs(txs)
+	m.logger.Info().Int("total", len(txs)).
+		Int("new", inserted).
+		Int("failed", failed).
+		Str("total_gas_used_eth", decimal.NewFromBigInt(totalGasUsed, -18).String()).
+		Msg("finished processing BASE txs history")
+}
+
 func (m *Monitor) RunArbitrumTxHistory(saveRawResponses bool) {
 	apiUrl := m.cfg.Arbitrum.ApiUrl
 	address := m.cfg.Arbitrum.Address
@@ -266,6 +332,72 @@ func (m *Monitor) RunEthereumBalances() {
 	}
 }
 
+func (m *Monitor) RunBaseBalances() {
+	apiUrl := m.cfg.Base.ApiUrl
+	address := m.cfg.Base.Address
+	apiKey := m.cfg.Base.Key
+	useTs := time.Now()
+
+	ethWei, err := m.getEthereumBalance(apiUrl, address, apiKey, "")
+	if err != nil {
+		m.logger.Error().Err(err).
+			Str("address", address).
+			Str("network", BASE_NETWORK).
+			Msg("failed to get ETH balance")
+	}
+
+	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Base.UsdcAddress)
+	if err != nil {
+		m.logger.Error().Err(err).
+			Str("address", address).
+			Str("network", BASE_NETWORK).
+			Msg("failed to get USDC balance")
+	}
+
+	if ethWei != "" {
+		ethBalance := DbBalance{
+			Timestamp: useTs.Unix(),
+			Balance:   ethWei,
+			Exponent:  18,
+			Token:     "ETH",
+			Address:   address,
+			Network:   BASE_NETWORK,
+		}
+		if err := m.InsertBalance(ethBalance); err != nil {
+			m.logger.Error().Err(err).Str("network", BASE_NETWORK).Msg("failed to insert balance")
+		}
+
+		if ethDecimal, err := decimal.NewFromString(ethWei); err == nil {
+			m.logger.Info().
+				Str("ETH", ethDecimal.Shift(-18).String()).
+				Str("network", BASE_NETWORK).
+				Str("datetime", useTs.Format(time.RFC3339)).
+				Msg("current balance")
+		}
+	}
+
+	if usdc != "" {
+		usdcBalance := DbBalance{
+			Timestamp: useTs.Unix(),
+			Balance:   usdc,
+			Exponent:  6,
+			Token:     "USDC",
+			Address:   address,
+			Network:   BASE_NETWORK,
+		}
+		if err := m.InsertBalance(usdcBalance); err != nil {
+			m.logger.Error().Err(err).Str("network", BASE_NETWORK).Msg("failed to insert balance")
+		}
+		if usdcDecimal, err := decimal.NewFromString(usdc); err == nil {
+			m.logger.Info().
+				Str("USDC", usdcDecimal.Shift(-6).String()).
+				Str("network", BASE_NETWORK).
+				Str("datetime", useTs.Format(time.RFC3339)).
+				Msg("current balance")
+		}
+	}
+}
+
 func (m *Monitor) RunArbitrumBalances() {
 	apiUrl := m.cfg.Arbitrum.ApiUrl
 	address := m.cfg.Arbitrum.Address
@@ -388,7 +520,8 @@ func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string) (
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, err
 	}
-	m.logger.Info().Int("total", len(data.Result)).Msg("fetched txs")
+
+	m.logger.Info().Int("total", len(data.Result)).Str("source", apiUrl).Msg("fetched txs")
 	return data.Result, nil
 }
 
