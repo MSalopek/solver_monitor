@@ -96,7 +96,7 @@ func InitDB(db *sql.DB) {
 			height INTEGER,
 			timestamp INTEGER,
 			gas_used_wei INTEGER,
-			gas_used_usd INTEGER,
+			gas_used_usd REAL,
 			network TEXT,
 			valid BOOLEAN,
 			tx_response TEXT
