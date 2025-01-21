@@ -18,6 +18,16 @@ var ChainIdToNetwork = map[string]string{
 	"osmosis-1": "osmosis",
 }
 
+var NetworkToChainId = map[string]string{
+	"arbitrum":  "42161",
+	"avalanche": "43114",
+	"base":      "8453",
+	"bnb":       "56",
+	"ethereum":  "1",
+	"polygon":   "137",
+	"osmosis":   "osmosis-1",
+}
+
 type OrderStatsSummary struct {
 	TotalSolverRevenue int64               `json:"total_solver_revenue"`
 	TotalOrderCount    int64               `json:"total_order_count"`

@@ -175,3 +175,35 @@ curl 'localhost:8080/stats/orders_filled/fill_stats?filler=<osmosis address>' | 
   }
 }
 ```
+
+### Endpoint `/stats/orders_filled/fills_in_range`
+
+Returns aggregated data about orders executed in given range, alongside volume and the fill amounts (min, avg, max).
+
+**Required args**
+* `network`: arbitrum, base, ethereum
+
+**Optional args**
+* `filler` - solver osmosis address to filter by
+* `start_block` - reduces the output set; it will start from `start_block` - earlier blocks are ignored
+
+Example:
+```shell
+curl 'localhost:8080/stats/orders_filled/fills_in_range?network=ethereum&filler=osmo1xjuvq8mlmhc24l2ewya2uyyj9t6r0dcfdhza6h&start_block=27354010' | jq .
+{
+  "orders": [
+    {
+      "amount_range": "250-500",
+      "total_orders_in_range": 7,
+      "executed_orders_in_range": 3,
+      "filler": "osmo1xjuvq8mlmhc24l2ewya2uyyj9t6r0dcfdhza6h",
+      "total_volume": 1061,
+      "avg_transfer": 353.759515,
+      "min_transfer": 262,
+      "max_transfer": 450,
+      "source_domain": 1
+    }
+  ]
+}
+```
+

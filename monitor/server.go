@@ -28,6 +28,7 @@ func (s *Server) RunWithContext(ctx context.Context, addr string) error {
 	// Setup routes
 	router.GET("/stats/orders_filled", s.getOrdersFilledStats)
 	router.GET("/stats/orders_filled/fill_stats", s.getFillStats)
+	router.GET("/stats/orders_filled/fills_in_range", s.getOrderDetailsByRange)
 	router.GET("/stats/fees", s.getFeesStats)
 	router.GET("/balances/latest", s.getLatestBalances)
 	// TODO: needs pagination so I'm temporarily removing this
@@ -244,6 +245,35 @@ func (s *Server) getFillStats(c *gin.Context) {
 
 	response, err := s.monitor.GetDbFillStats(filler)
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get stats"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"orders": response})
+}
+
+func (s *Server) getOrderDetailsByRange(c *gin.Context) {
+	network := c.Query("network")
+	startBlock := c.Query("start_block")
+	filler := c.Query("filler")
+
+	if network == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "network is required"})
+		return
+	}
+
+	startFromBlock := uint64(0)
+	if startBlock != "" {
+		asInt, err := strconv.ParseUint(startBlock, 10, 64)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start block"})
+			return
+		}
+		startFromBlock = asInt
+	}
+
+	response, err := s.monitor.GetOrderDetailsByRange(network, startFromBlock, filler)
+	if err != nil {
+		s.monitor.logger.Error().Err(err).Msg("failed to get fill stats")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get stats"})
 		return
 	}
