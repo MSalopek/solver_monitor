@@ -96,6 +96,7 @@ func InitDB(db *sql.DB) {
 			height INTEGER,
 			timestamp INTEGER,
 			gas_used_wei INTEGER,
+			gas_used_usd INTEGER,
 			network TEXT,
 			valid BOOLEAN,
 			tx_response TEXT
@@ -106,16 +107,28 @@ func InitDB(db *sql.DB) {
 	}
 
 	_, err = db.Exec(`
-	CREATE TABLE IF NOT EXISTS balances (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		timestamp INTEGER,
-		address TEXT,
-		balance TEXT,
-		exponent INTEGER,
-		token TEXT,
-		network TEXT
-	)
-`)
+		CREATE TABLE IF NOT EXISTS usd_prices (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			token_denom TEXT,
+			price_usd INTEGER,
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+		);
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS balances (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp INTEGER,
+			address TEXT,
+			balance TEXT,
+			exponent INTEGER,
+			token TEXT,
+			network TEXT
+		)
+	`)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -141,6 +154,12 @@ func InitDB(db *sql.DB) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func (m *Monitor) InsertUsdPrice(denom string, price float64) error {
+	query := `INSERT INTO usd_prices (token_denom, price_usd) VALUES (?, ?);`
+	_, err := m.db.Exec(query, denom, price)
+	return err
 }
 
 func (m *Monitor) InsertBalance(balance DbBalance) error {
@@ -184,9 +203,9 @@ func (m *Monitor) InsertEthTxResponse(txResponse EthTxDetails, network string, s
 	actualGasUsedWei.SetString(txResponse.GasUsed, 10) // Parse string as base 10
 	actualGasUsedWei.Mul(actualGasUsedWei, gasPrice)
 	_, err = m.db.Exec(`
-		INSERT INTO eth_tx_responses (tx_hash, height, timestamp, gas_used_wei, network, valid, tx_response)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, txResponse.Hash, height, timestamp, actualGasUsedWei.String(), network, txResponse.IsError, rawResponse)
+		INSERT INTO eth_tx_responses (tx_hash, height, timestamp, gas_used_wei, gas_used_usd, network, valid, tx_response)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, txResponse.Hash, height, timestamp, actualGasUsedWei.String(), txResponse.GasUsedUsd, network, txResponse.IsError, rawResponse)
 	return err
 }
 

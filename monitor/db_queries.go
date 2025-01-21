@@ -65,6 +65,64 @@ type FillStatsResponse struct {
 	MaxRevenueOrders []MaxFillOrderResponse `json:"max_revenue_details"`
 }
 
+func (m *Monitor) GetLatestUsdTokenPrice(token string) (float64, error) {
+	rows, err := m.db.Query(`
+		SELECT price_usd
+		FROM usd_prices
+		WHERE token_denom = ?
+		ORDER BY timestamp DESC
+		LIMIT 1
+	`, token)
+	if err != nil {
+		return 0, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	var price string
+	if rows.Next() {
+		err := rows.Scan(&price)
+		if err != nil {
+			return 0, fmt.Errorf("sql scan error: %w", err)
+		}
+	}
+
+	priceFloat, err := strconv.ParseFloat(price, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse price: %w", err)
+	}
+
+	return priceFloat, nil
+}
+
+func (m *Monitor) GetLatestUsdTokenPriceDecimal(token string) (decimal.Decimal, error) {
+	rows, err := m.db.Query(`
+		SELECT price_usd
+		FROM usd_prices
+		WHERE token_denom = ?
+		ORDER BY timestamp DESC
+		LIMIT 1
+	`, token)
+	if err != nil {
+		return decimal.Decimal{}, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	var price string
+	if rows.Next() {
+		err := rows.Scan(&price)
+		if err != nil {
+			return decimal.Decimal{}, fmt.Errorf("sql scan error: %w", err)
+		}
+	}
+
+	priceDec, err := decimal.NewFromString(price)
+	if err != nil {
+		return decimal.Decimal{}, fmt.Errorf("failed to parse price: %w", err)
+	}
+
+	return priceDec, nil
+}
+
 // if useDecimals is true, the balance is returned in decimals
 // otherwise, the balance is returned as a string
 // this means that for 10^18, the balance will be "1000000000000000000" with useDecimals = false
