@@ -83,6 +83,7 @@ func NewMonitor(db *sql.DB, cfg *Config, logger *zerolog.Logger, apiUrl string) 
 }
 
 func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
+	m.GetCoingeckoPrices()
 	wg.Add(6)
 	go func() {
 		defer wg.Done()
