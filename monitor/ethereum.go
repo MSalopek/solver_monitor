@@ -20,9 +20,9 @@ const (
 	ARBITRUM_NETWORK  = "arbitrum"
 	ARBITRUM_CHAIN_ID = 42161
 
-	ETHEREUM_NETWORK  = "ethereum"
+	ETHEREUM_NETWORK      = "ethereum"
 	COINGECKO_ETHEREUM_ID = "ethereum"
-	ETHEREUM_CHAIN_ID = 1
+	ETHEREUM_CHAIN_ID     = 1
 
 	BASE_NETWORK  = "base"
 	BASE_CHAIN_ID = 8453
@@ -48,12 +48,11 @@ type EthTxDetails struct {
 	CumulativeGasUsed string `json:"cumulativeGasUsed"`
 	TxreceiptStatus   string `json:"txreceipt_status"`
 	GasUsed           string `json:"gasUsed"`
-	GasUsedUsd		  string `json:"gasUsedUsd"`
 	Confirmations     string `json:"confirmations"`
 	IsError           string `json:"isError"`
 	Network           string `json:"network,omitempty"` // not in the response -- injected by us
+	GasUsedUsd        string `json:"gasUsedUsd"`        // not in the response -- calculated by us
 }
-
 type EthScanTxListResponse struct {
 	Status  string         `json:"status"`
 	Message string         `json:"message"`
@@ -81,13 +80,11 @@ func (m *Monitor) RunArbitrumTxHistory(saveRawResponses bool) {
 		m.logger.Warn().Msg("failed to get latest arbitrum height -- starting from 0")
 	}
 
-	LatestEthPriceUsd, err := m.GetLatestUsdTokenPrice(COINGECKO_ETHEREUM_ID)
+	priceUsd, err := m.GetLatestUsdTokenPriceDecimal(COINGECKO_ETHEREUM_ID)
 	if err != nil {
 		m.logger.Error().Err(err).Msg("failed to get latest USD token price")
 		return
 	}
-	LatestEthPriceUsdBigFloat := new(big.Float)
-	LatestEthPriceUsdBigFloat.SetString(strconv.FormatFloat(LatestEthPriceUsd, 'f', 0, 64))
 
 	inserted := 0
 	failed := 0
@@ -101,23 +98,18 @@ func (m *Monitor) RunArbitrumTxHistory(saveRawResponses bool) {
 			continue
 		}
 
-		gasUsed := new(big.Int)
-		if _, success := gasUsed.SetString(tx.GasUsed, 10); !success {
-			m.logger.Error().Str("gas_used", tx.GasUsed).Msg("failed to parse gas used")
+		// just report the error if it happens
+		// this will return zero decimal if there is an error so it's ok
+		gasUsedUsd, err := calculateGasUSD(priceUsd, tx.GasUsed, tx.GasPrice)
+		if err != nil {
+			m.logger.Error().Err(err).
+				Str("tx_hash", tx.Hash).
+				Str("block_number", tx.BlockNumber).
+				Str("network", ETHEREUM_NETWORK).
+				Msg("failed to calculate gas used USD")
 		}
-		gasPrice := new(big.Int)
-		if _, success := gasPrice.SetString(tx.GasPrice, 10); !success {
-			m.logger.Error().Str("gas_price", tx.GasPrice).Msg("failed to parse gas price")
-		}
-		ether := new(big.Float)
-		ether = ether.Mul(new(big.Float).SetInt(gasUsed), new(big.Float).SetInt(gasPrice))
 
-		exp := new(big.Float)
-		exp = exp.SetInt64(1000000000000000000)
-		ether = ether.Quo(ether, exp)
-		
-		ether = ether.Mul(ether, LatestEthPriceUsdBigFloat)
-		tx.GasUsedUsd = ether.String()
+		tx.GasUsedUsd = gasUsedUsd.String()
 
 		tx.Network = ARBITRUM_NETWORK
 		if err := m.InsertEthTxResponse(tx, ARBITRUM_NETWORK, saveRawResponses); err != nil {
@@ -132,7 +124,7 @@ func (m *Monitor) RunArbitrumTxHistory(saveRawResponses bool) {
 		inserted++
 	}
 
-	totalGasUsed := m.getGasUsed(txs)
+	totalGasUsed := m.getGasUsedForTxs(txs)
 	m.logger.Info().Int("total", len(txs)).
 		Int("new", inserted).
 		Int("failed", failed).
@@ -155,15 +147,12 @@ func (m *Monitor) RunEthereumTxHistory(saveRawResponses bool) {
 		m.logger.Warn().Msg("failed to get latest ethereum height -- starting from 0")
 	}
 
-
-	LatestEthPriceUsd, err := m.GetLatestUsdTokenPrice(COINGECKO_ETHEREUM_ID)
+	priceUsd, err := m.GetLatestUsdTokenPriceDecimal(COINGECKO_ETHEREUM_ID)
 	if err != nil {
 		m.logger.Error().Err(err).Msg("failed to get latest USD token price")
 		return
 	}
-	LatestEthPriceUsdBigFloat := new(big.Float)
-	LatestEthPriceUsdBigFloat.SetString(strconv.FormatFloat(LatestEthPriceUsd, 'f', 0, 64))
-	
+
 	inserted := 0
 	failed := 0
 	for _, tx := range txs {
@@ -175,26 +164,19 @@ func (m *Monitor) RunEthereumTxHistory(saveRawResponses bool) {
 		if height <= latestHeight {
 			continue
 		}
-		
 
-		gasUsed := new(big.Int)
-		if _, success := gasUsed.SetString(tx.GasUsed, 10); !success {
-			m.logger.Error().Str("gas_used", tx.GasUsed).Msg("failed to parse gas used")
+		// just report the error if it happens
+		// this will return zero decimal if there is an error so it's ok
+		gasUsedUsd, err := calculateGasUSD(priceUsd, tx.GasUsed, tx.GasPrice)
+		if err != nil {
+			m.logger.Error().Err(err).
+				Str("tx_hash", tx.Hash).
+				Str("block_number", tx.BlockNumber).
+				Str("network", ETHEREUM_NETWORK).
+				Msg("failed to calculate gas used USD")
 		}
-		gasPrice := new(big.Int)
-		if _, success := gasPrice.SetString(tx.GasPrice, 10); !success {
-			m.logger.Error().Str("gas_price", tx.GasPrice).Msg("failed to parse gas price")
-		}
-		ether := new(big.Float)
-		ether = ether.Mul(new(big.Float).SetInt(gasUsed), new(big.Float).SetInt(gasPrice))
 
-		exp := new(big.Float)
-		exp = exp.SetInt64(1000000000000000000)
-		ether = ether.Quo(ether, exp)
-		
-		ether = ether.Mul(ether, LatestEthPriceUsdBigFloat)
-		tx.GasUsedUsd = ether.String()
-
+		tx.GasUsedUsd = gasUsedUsd.String()
 		tx.Network = ETHEREUM_NETWORK
 		if err := m.InsertEthTxResponse(tx, ETHEREUM_NETWORK, saveRawResponses); err != nil {
 			m.logger.Error().Err(err).
@@ -208,7 +190,7 @@ func (m *Monitor) RunEthereumTxHistory(saveRawResponses bool) {
 		inserted++
 	}
 
-	totalGasUsed := m.getGasUsed(txs)
+	totalGasUsed := m.getGasUsedForTxs(txs)
 	m.logger.Info().Int("total", len(txs)).
 		Int("new", inserted).
 		Int("failed", failed).
@@ -350,20 +332,18 @@ func (m *Monitor) RunArbitrumBalances() {
 	}
 }
 
-func (m *Monitor) getGasUsed(txs []EthTxDetails) *big.Int {
+func (m *Monitor) getGasUsedForTxs(txs []EthTxDetails) *big.Int {
 	total := new(big.Int)
 	for _, tx := range txs {
-		gasUsed := new(big.Int)
-		gasPrice := new(big.Int)
-		if _, success := gasUsed.SetString(tx.GasUsed, 10); !success {
-			m.logger.Error().Str("gas_used", tx.GasUsed).Msg("failed to parse gas used")
+		gasUsage, err := getGasUsage(tx.GasUsed, tx.GasPrice)
+		if err != nil {
+			m.logger.Error().Err(err).
+				Str("tx_hash", tx.Hash).
+				Str("block_number", tx.BlockNumber).
+				Msg("failed to get gas usage -- reported value may be incorrect")
 			continue
 		}
-		if _, success := gasPrice.SetString(tx.GasPrice, 10); !success {
-			m.logger.Error().Str("gas_price", tx.GasPrice).Msg("failed to parse gas price")
-			continue
-		}
-		total.Add(total, gasUsed.Mul(gasUsed, gasPrice))
+		total.Add(total, gasUsage)
 	}
 	return total
 }
@@ -408,7 +388,7 @@ func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string) (
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, err
 	}
-	m.logger.Info().Str("total", data.Message).Msg("fetched txs")
+	m.logger.Info().Int("total", len(data.Result)).Msg("fetched txs")
 	return data.Result, nil
 }
 
@@ -475,11 +455,38 @@ func (m *Monitor) GetEthereumTxsFromFile(path string, network string) ([]EthTxDe
 		return nil, err
 	}
 
-	totalGasUsed := m.getGasUsed(data.Result)
+	totalGasUsed := m.getGasUsedForTxs(data.Result)
 	m.logger.Info().Int("total", len(data.Result)).
 		Str("total_gas_used_eth", decimal.NewFromBigInt(totalGasUsed, -18).String()).
 		Str("network", network).
 		Msg("finished processing txs history")
 
 	return data.Result, nil
+}
+
+// Converts gas used and gas price to USD from the input values
+func calculateGasUSD(priceUsd decimal.Decimal, amountWei, gasPrice string) (decimal.Decimal, error) {
+	zero := decimal.Zero
+	gasUsed, err := getGasUsage(amountWei, gasPrice)
+	if err != nil {
+		return zero, err
+	}
+
+	gasUsedDec, err := decimal.NewFromString(gasUsed.String())
+	if err != nil {
+		return zero, err
+	}
+	return gasUsedDec.Shift(-18).Mul(priceUsd), nil
+}
+
+func getGasUsage(gasUsed, gasPrice string) (*big.Int, error) {
+	gasUsedBig := new(big.Int)
+	gasPriceBig := new(big.Int)
+	if _, success := gasUsedBig.SetString(gasUsed, 10); !success {
+		return nil, fmt.Errorf("failed to parse gas used: %s", gasUsed)
+	}
+	if _, success := gasPriceBig.SetString(gasPrice, 10); !success {
+		return nil, fmt.Errorf("failed to parse gas price: %s", gasPrice)
+	}
+	return gasUsedBig.Mul(gasUsedBig, gasPriceBig), nil
 }
