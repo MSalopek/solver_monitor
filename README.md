@@ -44,19 +44,16 @@ Returns fee amounts (ethereum) paid across all networks that the solver has inde
 curl 'localhost:8080/stats/fees' | jq .
 {
   "fees": {
-    "total_gas_used": "0.000973216190484",
-    "total_tx_count": 50,
+    "total_gas_usd": "12.57",
+    "total_gas_eth": "0.018729726074726943",
+    "total_tx_count": 66,
     "network_stats": [
       {
-        "total_gas_used": "0.000295746839457",
-        "tx_count": 46,
+        "total_gas_usd": "1.0755905164698336",
+        "total_gas_eth": "0.000321920320268",
+        "tx_count": 12,
         "network": "arbitrum"
       },
-      {
-        "total_gas_used": "0.000677469351027",
-        "tx_count": 4,
-        "network": "ethereum"
-      }
     ]
   }
 }
