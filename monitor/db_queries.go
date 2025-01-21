@@ -31,15 +31,17 @@ type NetworkOrderStats struct {
 }
 
 type FeeStatsSummary struct {
-	TotalGasUsed string            `json:"total_gas_used"`
+	TotalGasUSD  string            `json:"total_gas_usd"`
+	TotalGasETH  string            `json:"total_gas_eth"`
 	TotalTxCount int64             `json:"total_tx_count"`
 	NetworkStats []NetworkFeeStats `json:"network_stats"`
 }
 
 type NetworkFeeStats struct {
-	TotalGasUsed string `json:"total_gas_used"`
-	TxCount      int64  `json:"tx_count"`
-	Network      string `json:"network"`
+	TotalGasUSD string `json:"total_gas_usd"`
+	TotalGasETH string `json:"total_gas_eth"`
+	TxCount     int64  `json:"tx_count"`
+	Network     string `json:"network"`
 }
 
 type BalancesByNetworkResponse map[string][]DbBalance
@@ -233,7 +235,8 @@ func (m *Monitor) GetDbFeesStats() (*FeeStatsSummary, error) {
         SELECT 
             network,
             COUNT(*) as tx_count,
-            SUM(gas_used_wei) as total_gas_used
+            SUM(gas_used_wei) as total_gas_wei,
+			SUM(gas_used_usd) as total_gas_usd
         FROM eth_tx_responses
         GROUP BY network
     `)
@@ -244,11 +247,13 @@ func (m *Monitor) GetDbFeesStats() (*FeeStatsSummary, error) {
 
 	stats := FeeStatsSummary{}
 	totalGasUsedDecimal := decimal.NewFromInt(0)
+	totalGasUsdDecimal := decimal.NewFromInt(0)
 	for rows.Next() {
 		var s NetworkFeeStats
 		var txCount int64
 		var totalGas int64
-		err := rows.Scan(&s.Network, &txCount, &totalGas)
+		var totalGasUsd float64
+		err := rows.Scan(&s.Network, &txCount, &totalGas, &totalGasUsd)
 		if err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
@@ -259,15 +264,17 @@ func (m *Monitor) GetDbFeesStats() (*FeeStatsSummary, error) {
 		}
 
 		s.TxCount = txCount
-		s.TotalGasUsed = strconv.FormatInt(totalGas, 10) // This represents total gas used in wei
+		s.TotalGasETH = strconv.FormatInt(totalGas, 10) // This represents total gas used in wei
+		s.TotalGasUSD = strconv.FormatFloat(totalGasUsd, 'f', -1, 64)
 
 		stats.NetworkStats = append(stats.NetworkStats, s)
 		stats.TotalTxCount += txCount
 		totalGasUsedDecimal = totalGasUsedDecimal.Add(decimal.NewFromInt(totalGas))
+		totalGasUsdDecimal = totalGasUsdDecimal.Add(decimal.NewFromFloat(totalGasUsd))
 	}
 
-	stats.TotalGasUsed = totalGasUsedDecimal.String()
-
+	stats.TotalGasETH = totalGasUsedDecimal.String()
+	stats.TotalGasUSD = totalGasUsdDecimal.StringFixed(2)
 	return &stats, nil
 }
 

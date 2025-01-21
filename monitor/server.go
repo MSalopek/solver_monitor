@@ -213,21 +213,21 @@ func (s *Server) getFeesStats(c *gin.Context) {
 	}
 
 	if asInteger == "" {
-		totalDecimal, err := decimal.NewFromString(stats.TotalGasUsed)
+		totalDecimal, err := decimal.NewFromString(stats.TotalGasETH)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "unexpected error"})
 			s.monitor.logger.Error().Err(err).Msg("failed to convert total gas used to decimal")
 			return
 		}
 		// this is eth
-		stats.TotalGasUsed = totalDecimal.Shift(-18).String()
+		stats.TotalGasETH = totalDecimal.Shift(-18).String()
 		for i := range stats.NetworkStats {
-			networkTotalDecimal, err := decimal.NewFromString(stats.NetworkStats[i].TotalGasUsed)
+			networkTotalDecimal, err := decimal.NewFromString(stats.NetworkStats[i].TotalGasETH)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "unexpected error"})
 				return
 			}
-			stats.NetworkStats[i].TotalGasUsed = networkTotalDecimal.Shift(-18).String()
+			stats.NetworkStats[i].TotalGasETH = networkTotalDecimal.Shift(-18).String()
 		}
 	}
 
