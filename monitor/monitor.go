@@ -38,6 +38,7 @@ type OsmosisConfig struct {
 type Config struct {
 	Arbitrum ChainEntry    `json:"arbitrum,omitempty" yaml:"arbitrum,omitempty" toml:"arbitrum,omitempty"`
 	Ethereum ChainEntry    `json:"ethereum,omitempty" yaml:"ethereum,omitempty" toml:"ethereum,omitempty"`
+	Base     ChainEntry    `json:"base,omitempty" yaml:"base,omitempty" toml:"base,omitempty"`
 	Osmosis  OsmosisConfig `json:"osmosis,omitempty" yaml:"osmosis,omitempty" toml:"osmosis,omitempty"`
 }
 
@@ -83,7 +84,7 @@ func NewMonitor(db *sql.DB, cfg *Config, logger *zerolog.Logger, apiUrl string) 
 }
 
 func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
-	wg.Add(6)
+	wg.Add(8)
 	go func() {
 		defer wg.Done()
 		m.RunEthereumBalances()
@@ -91,6 +92,10 @@ func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
 	go func() {
 		defer wg.Done()
 		m.RunArbitrumBalances()
+	}()
+	go func() {
+		defer wg.Done()
+		m.RunBaseBalances()
 	}()
 	go func() {
 		defer wg.Done()
@@ -103,6 +108,10 @@ func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
 	go func() {
 		defer wg.Done()
 		m.RunEthereumTxHistory(saveRawResponses)
+	}()
+	go func() {
+		defer wg.Done()
+		m.RunBaseTxHistory(saveRawResponses)
 	}()
 	go func() {
 		defer wg.Done()
