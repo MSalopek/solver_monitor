@@ -95,6 +95,9 @@ func main() {
 		"contract address", *contractAddress,
 		"interval", strconv.Itoa(*interval)}).Msg("monitor started")
 
+	// Get coingecko prices at startup (required for eth tx calculation routines)
+	m.GetCoingeckoPrices()
+
 	var wg sync.WaitGroup
 	if !*skipInitialization {
 		// there's no do while loop in go, so we just run the orders once on startup
@@ -109,6 +112,9 @@ func main() {
 
 	ticker := time.NewTicker(time.Duration(*interval) * time.Minute)
 	defer ticker.Stop()
+
+	tickerHourly := time.NewTicker(time.Hour)
+	defer tickerHourly.Stop()
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -125,6 +131,8 @@ func main() {
 
 	for {
 		select {
+		case <-tickerHourly.C:
+			m.GetCoingeckoPrices()
 		case <-ticker.C:
 			if !*serverOnly {
 				log.Logger.Debug().Msg("interval tick -- fetching txs")

@@ -5,32 +5,37 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
-type CoinGeckoAPIResponseETH struct {
-	Ethereum struct {
-		USD float64 `json:"usd"`
-	} `json:"ethereum"`
+type UsdPrice struct {
+	USD float64 `json:"usd"`
 }
 
-type CoinGeckoAPIResponseOSMO struct {
-	Osmosis struct {
-		USD float64 `json:"usd"`
-	} `json:"osmosis"`
-}
+// Response example from API:
+// {
+//     "ethereum": {
+//         "usd": 3265.89
+//     },
+//     "osmosis": {
+//         "usd": 0.40659
+//     }
+// }
+type PriceResponse map[string]UsdPrice
 
-func (m *Monitor) GetCoingeckoPrices() (error) {
-	m.logger.Info().Msg("Fetching ETH USD prices from CoinGecko")
-	
+func (m *Monitor) GetCoingeckoPrices() error {
+	m.logger.Info().Msg("Fetching USD prices from CoinGecko")
+
 	denoms := []string{"ethereum", "osmosis"}
-	for _, denom := range denoms {
-		EthPrice, err := fetchPrice(denom)
-		if err != nil {
-			m.logger.Error().Err(err).Msgf("Failed to fetch ETH price for %s", denom)
-			return err
-		}
+	denomString := strings.Join(denoms, ",")
+	prices, err := fetchPrice(denomString)
+	if err != nil {
+		m.logger.Error().Err(err).Msgf("Failed to fetch prices for %s", denomString)
+		return err
+	}
 
-		err = m.InsertUsdPrice(denom, EthPrice)
+	for denom, price := range prices {
+		err = m.InsertUsdPrice(denom, price.USD)
 		if err != nil {
 			m.logger.Error().Err(err).Msg("Failed to store ETH price in database")
 			return err
@@ -40,39 +45,27 @@ func (m *Monitor) GetCoingeckoPrices() (error) {
 	return nil
 }
 
-func fetchPrice(denom string) (float64, error) {
-
-	url := fmt.Sprintf("https://api.coingecko.com/api/v3/simple/price?ids=%s&vs_currencies=usd", denom)
+// Accepts a comma separated list of denoms (e.g. "ethereum,osmosis")
+func fetchPrice(denoms string) (PriceResponse, error) {
+	url := fmt.Sprintf("https://api.coingecko.com/api/v3/simple/price?ids=%s&vs_currencies=usd", denoms)
 
 	// Make HTTP GET request
 	resp, err := http.Get(url)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 
-	switch denom {
-	case "ethereum":
-		var apiResponse CoinGeckoAPIResponseETH
-		err = json.Unmarshal(body, &apiResponse)
-		if err != nil {
-			return 0, err
-		}
-		return apiResponse.Ethereum.USD, nil
-	case "osmosis":
-		var apiResponse CoinGeckoAPIResponseOSMO
-		err = json.Unmarshal(body, &apiResponse)
-		if err != nil {
-			return 0, err
-		}
-		return apiResponse.Osmosis.USD, nil
-	default:
-		return 0, fmt.Errorf("unsupported denom: %s", denom)
+	var priceResponse PriceResponse
+	err = json.Unmarshal(body, &priceResponse)
+	if err != nil {
+		return nil, err
 	}
+	return priceResponse, nil
 }
