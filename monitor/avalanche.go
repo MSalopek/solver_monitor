@@ -47,11 +47,18 @@ type AvaxEVMTxDetails struct {
 }
 
 func (td *AvaxEVMTxDetails) ToEthTxDetails() EthTxDetails {
+	// 2025-02-06T21:03:39.000Z
+	useTs := time.Unix(0, 0)
+	parsed, err := time.Parse(time.RFC3339, td.Timestamp)
+	if err == nil {
+		useTs = parsed
+	}
+
 	return EthTxDetails{
 		Hash:             td.ID,
 		BlockNumber:      strconv.FormatInt(td.BlockNumber, 10),
 		BlockHash:        td.BlockHash,
-		TimeStamp:        td.Timestamp,
+		TimeStamp:        strconv.FormatInt(useTs.Unix(), 10),
 		GasUsed:          td.GasUsed,
 		GasPrice:         td.GasPrice,
 		GasPriceBid:      td.GasPrice,
