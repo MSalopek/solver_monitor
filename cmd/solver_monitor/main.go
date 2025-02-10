@@ -98,27 +98,8 @@ func main() {
 	// Get coingecko prices at startup (required for eth tx calculation routines)
 	m.GetCoingeckoPrices()
 
-	var wg sync.WaitGroup
-	if !*skipInitialization {
-		// there's no do while loop in go, so we just run the orders once on startup
-		log.Logger.Info().Msg("initializing state and fetching txs")
-		m.RunAll(&wg, *saveRawResponses)
-		wg.Wait()
-		log.Logger.Info().Int("interval_minutes", *interval).Msg("initial state and txs fetched -- running cron")
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	ticker := time.NewTicker(time.Duration(*interval) * time.Minute)
-	defer ticker.Stop()
-
-	tickerHourly := time.NewTicker(time.Hour)
-	defer tickerHourly.Stop()
-
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-
 	server := monitor.NewServer(m)
 
 	// Start server in a goroutine with context after initial state and txs are fetched
@@ -129,14 +110,35 @@ func main() {
 		}
 	}()
 
+	m.RunAvalancheBalances()
+	m.RunAvalancheTxHistory(false)
+
+	var wg sync.WaitGroup
+	if !*skipInitialization {
+		// // there's no do while loop in go, so we just run the orders once on startup
+		// log.Logger.Info().Msg("initializing state and fetching txs")
+		// m.RunAll(&wg, *saveRawResponses)
+		// wg.Wait()
+		// log.Logger.Info().Int("interval_minutes", *interval).Msg("initial state and txs fetched -- running cron")
+	}
+
+	ticker := time.NewTicker(time.Duration(*interval) * time.Minute)
+	defer ticker.Stop()
+
+	tickerHourly := time.NewTicker(time.Hour)
+	defer tickerHourly.Stop()
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	for {
 		select {
-		case <-tickerHourly.C:
-			m.GetCoingeckoPrices()
+		// case <-tickerHourly.C:
+		// 	m.GetCoingeckoPrices()
 		case <-ticker.C:
 			if !*serverOnly {
 				log.Logger.Debug().Msg("interval tick -- fetching txs")
-				m.RunAll(&wg, *saveRawResponses)
+				// m.RunAll(&wg, *saveRawResponses)
 			}
 		case <-sigs:
 			log.Info().Msg("shutdown signal received")
