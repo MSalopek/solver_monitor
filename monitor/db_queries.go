@@ -43,15 +43,17 @@ type NetworkOrderStats struct {
 type FeeStatsSummary struct {
 	TotalGasUSD  string            `json:"total_gas_usd"`
 	TotalGasETH  string            `json:"total_gas_eth"`
+	TotalGasAVAX string            `json:"total_gas_avax"`
 	TotalTxCount int64             `json:"total_tx_count"`
 	NetworkStats []NetworkFeeStats `json:"network_stats"`
 }
 
 type NetworkFeeStats struct {
-	TotalGasUSD string `json:"total_gas_usd"`
-	TotalGasETH string `json:"total_gas_eth"`
-	TxCount     int64  `json:"tx_count"`
-	Network     string `json:"network"`
+	TotalGasUSD  string `json:"total_gas_usd"`
+	TotalGasETH  string `json:"total_gas_eth"`
+	TotalGasAVAX string `json:"total_gas_avax"`
+	TxCount      int64  `json:"tx_count"`
+	Network      string `json:"network"`
 }
 
 type BalancesByNetworkResponse map[string][]DbBalance
@@ -256,6 +258,7 @@ func (m *Monitor) GetDbFeesStats() (*FeeStatsSummary, error) {
 	defer rows.Close()
 
 	stats := FeeStatsSummary{}
+	totalGasUsedAvaxDecimal := decimal.NewFromInt(0)
 	totalGasUsedDecimal := decimal.NewFromInt(0)
 	totalGasUsdDecimal := decimal.NewFromInt(0)
 	for rows.Next() {
@@ -274,16 +277,22 @@ func (m *Monitor) GetDbFeesStats() (*FeeStatsSummary, error) {
 		}
 
 		s.TxCount = txCount
-		s.TotalGasETH = strconv.FormatInt(totalGas, 10) // This represents total gas used in wei
 		s.TotalGasUSD = strconv.FormatFloat(totalGasUsd, 'f', -1, 64)
 
+		if s.Network == AVALANCHE_NETWORK {
+			s.TotalGasAVAX = strconv.FormatInt(totalGas, 10) // This represents total gas used in wei for AVAX
+			totalGasUsedAvaxDecimal = totalGasUsedAvaxDecimal.Add(decimal.NewFromInt(totalGas))
+		} else {
+			s.TotalGasETH = strconv.FormatInt(totalGas, 10) // This represents total gas used in wei for ETH
+			totalGasUsedDecimal = totalGasUsedDecimal.Add(decimal.NewFromInt(totalGas))
+		}
 		stats.NetworkStats = append(stats.NetworkStats, s)
 		stats.TotalTxCount += txCount
-		totalGasUsedDecimal = totalGasUsedDecimal.Add(decimal.NewFromInt(totalGas))
 		totalGasUsdDecimal = totalGasUsdDecimal.Add(decimal.NewFromFloat(totalGasUsd))
 	}
 
 	stats.TotalGasETH = totalGasUsedDecimal.String()
+	stats.TotalGasAVAX = totalGasUsedAvaxDecimal.String()
 	stats.TotalGasUSD = totalGasUsdDecimal.StringFixed(2)
 	return &stats, nil
 }

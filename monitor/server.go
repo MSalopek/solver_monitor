@@ -214,15 +214,33 @@ func (s *Server) getFeesStats(c *gin.Context) {
 	}
 
 	if asInteger == "" {
-		totalDecimal, err := decimal.NewFromString(stats.TotalGasETH)
+		ethTotalDecimal, err := decimal.NewFromString(stats.TotalGasETH)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "unexpected error"})
-			s.monitor.logger.Error().Err(err).Msg("failed to convert total gas used to decimal")
+			s.monitor.logger.Error().Err(err).Msg("failed to convert total gas used to decimal [eth]")
 			return
 		}
-		// this is eth
-		stats.TotalGasETH = totalDecimal.Shift(-18).String()
+		stats.TotalGasETH = ethTotalDecimal.Shift(-18).String()
+
+		avaxTotalDecimal, err := decimal.NewFromString(stats.TotalGasAVAX)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "unexpected error"})
+			s.monitor.logger.Error().Err(err).Msg("failed to convert total gas used to decimal [avax]")
+			return
+		}
+		stats.TotalGasAVAX = avaxTotalDecimal.Shift(-18).String()
+
 		for i := range stats.NetworkStats {
+			if stats.NetworkStats[i].Network == AVALANCHE_NETWORK {
+				networkTotalDecimal, err := decimal.NewFromString(stats.NetworkStats[i].TotalGasAVAX)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "unexpected error"})
+					return
+				}
+				stats.NetworkStats[i].TotalGasAVAX = networkTotalDecimal.Shift(-18).String()
+				continue
+			}
+
 			networkTotalDecimal, err := decimal.NewFromString(stats.NetworkStats[i].TotalGasETH)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "unexpected error"})
