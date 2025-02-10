@@ -8,25 +8,36 @@ import (
 	"strings"
 )
 
+const (
+	COINGECKO_AVALANCHE_ID = "avalanche-2"
+	COINGECKO_OSMOSIS_ID   = "osmosis"
+	COINGECKO_ETHEREUM_ID  = "ethereum"
+)
+
 type UsdPrice struct {
 	USD float64 `json:"usd"`
 }
 
 // Response example from API:
-// {
-//     "ethereum": {
-//         "usd": 3265.89
-//     },
-//     "osmosis": {
-//         "usd": 0.40659
-//     }
-// }
+//
+//	{
+//	    "ethereum": {
+//	        "usd": 3265.89
+//	    },
+//	    "osmosis": {
+//	        "usd": 0.40659
+//	    }
+//	}
 type PriceResponse map[string]UsdPrice
 
 func (m *Monitor) GetCoingeckoPrices() error {
 	m.logger.Info().Msg("Fetching USD prices from CoinGecko")
 
-	denoms := []string{"ethereum", "osmosis"}
+	denoms := []string{
+		COINGECKO_ETHEREUM_ID,
+		COINGECKO_OSMOSIS_ID,
+		COINGECKO_AVALANCHE_ID,
+	}
 	denomString := strings.Join(denoms, ",")
 	prices, err := fetchPrice(denomString)
 	if err != nil {

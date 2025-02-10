@@ -36,10 +36,11 @@ type OsmosisConfig struct {
 }
 
 type Config struct {
-	Arbitrum ChainEntry    `json:"arbitrum,omitempty" yaml:"arbitrum,omitempty" toml:"arbitrum,omitempty"`
-	Ethereum ChainEntry    `json:"ethereum,omitempty" yaml:"ethereum,omitempty" toml:"ethereum,omitempty"`
-	Base     ChainEntry    `json:"base,omitempty" yaml:"base,omitempty" toml:"base,omitempty"`
-	Osmosis  OsmosisConfig `json:"osmosis,omitempty" yaml:"osmosis,omitempty" toml:"osmosis,omitempty"`
+	Arbitrum  ChainEntry    `json:"arbitrum,omitempty" yaml:"arbitrum,omitempty" toml:"arbitrum,omitempty"`
+	Ethereum  ChainEntry    `json:"ethereum,omitempty" yaml:"ethereum,omitempty" toml:"ethereum,omitempty"`
+	Base      ChainEntry    `json:"base,omitempty" yaml:"base,omitempty" toml:"base,omitempty"`
+	Osmosis   OsmosisConfig `json:"osmosis,omitempty" yaml:"osmosis,omitempty" toml:"osmosis,omitempty"`
+	Avalanche ChainEntry    `json:"avalanche,omitempty" yaml:"avalanche,omitempty" toml:"avalanche,omitempty"`
 }
 
 func MustLoadConfig(path string) *Config {
@@ -84,7 +85,15 @@ func NewMonitor(db *sql.DB, cfg *Config, logger *zerolog.Logger, apiUrl string) 
 }
 
 func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
-	wg.Add(8)
+	wg.Add(10)
+	go func() {
+		defer wg.Done()
+		m.RunOsmosisBalances()
+	}()
+	go func() {
+		defer wg.Done()
+		m.RunAvalancheBalances()
+	}()
 	go func() {
 		defer wg.Done()
 		m.RunEthereumBalances()
@@ -115,7 +124,7 @@ func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
 	}()
 	go func() {
 		defer wg.Done()
-		m.RunOsmosisBalances()
+		m.RunAvalancheTxHistory(saveRawResponses)
 	}()
 }
 

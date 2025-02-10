@@ -14,15 +14,12 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const DEFAULT_ARBITRUM_API_URL = "https://api.arbiscan.io/api"
-
 const (
 	ARBITRUM_NETWORK  = "arbitrum"
 	ARBITRUM_CHAIN_ID = 42161
 
-	ETHEREUM_NETWORK      = "ethereum"
-	COINGECKO_ETHEREUM_ID = "ethereum"
-	ETHEREUM_CHAIN_ID     = 1
+	ETHEREUM_NETWORK  = "ethereum"
+	ETHEREUM_CHAIN_ID = 1
 
 	BASE_NETWORK  = "base"
 	BASE_CHAIN_ID = 8453
@@ -171,7 +168,7 @@ func (m *Monitor) RunArbitrumTxHistory(saveRawResponses bool) {
 			m.logger.Error().Err(err).
 				Str("tx_hash", tx.Hash).
 				Str("block_number", tx.BlockNumber).
-				Str("network", ETHEREUM_NETWORK).
+				Str("network", ARBITRUM_NETWORK).
 				Msg("failed to calculate gas used USD")
 		}
 
