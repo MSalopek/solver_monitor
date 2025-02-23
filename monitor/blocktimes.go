@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -16,6 +17,18 @@ type BlockTime struct {
 }
 
 const BLOCK_QUERY string = "/cosmos/base/tendermint/v1beta1/blocks"
+
+var urls = []string{
+	"https://osmosis-lcd.quickapi.com",
+	// "https://osmosis-api.polkachu.com", // doesn't have old block heights, other ones do
+	"https://osmosis-rest.publicnode.com",
+	"https://rest.cros-nest.com/osmosis",
+	"https://osmosis-api.chainroot.io",
+	"https://osmosis-lcd.quickapi.com:443",
+	"https://rest-osmosis.ecostake.com",
+	"https://rest.lavenderfive.com:443/osmosis",
+	"https://api.osmosis.validatus.com:443",
+}
 
 var RateLimitErr = errors.New("rate limit error")
 
@@ -42,38 +55,62 @@ func (m *Monitor) FetchAndSaveBlocktimes(intervalSeconds int) error {
 	}
 	m.logger.Info().Int64("count", int64(len(heights))).Msg("blocks in database")
 
-	var blocktimes = make([]*BlockTime, 0, len(heights))
+	// process fetched block times
+	var blocktimes = make(chan *BlockTime, 10)
+	go func() {
+		for b := range blocktimes {
+			bt := b
+			m.storeBlockTime(bt)
+		}
+	}()
+
+	heightsChan := make(chan int64, len(heights))
 	for _, h := range heights {
-		time.Sleep(time.Duration(intervalSeconds) * time.Second)
-
-		b, err := m.getBlockTimestamp(h)
-
-		if err != nil && errors.Is(err, RateLimitErr) {
-			m.logger.Warn().Int64("height", h).Msg("request was rate limited - sleeping for a minute")
-			time.Sleep(1 * time.Minute)
-			continue
-		}
-
-		if err != nil {
-			m.logger.Error().Int64("height", h).Err(err).Msg("error getting block timestamp - skipping")
-			continue
-		}
-
-		m.logger.Debug().Int64("height", h).Msg("fetched block time")
-		_, err = m.db.Exec(`
-		INSERT INTO osmo_block_times (height, timestamp, datetime)
-		VALUES (?, ?, ?)
-	`, b.Height, b.Timestamp, b.Datetime)
-		if err != nil {
-			return fmt.Errorf("failed to insert block time: %w", err)
-		}
-
-		m.logger.Debug().Int64("height", h).Msg("inserted block time")
-		blocktimes = append(blocktimes, b)
+		heightsChan <- h
 	}
+	close(heightsChan)
 
+	var wg sync.WaitGroup
+
+	for _, url := range urls {
+		wg.Add(1)
+		go func(wg *sync.WaitGroup, apiUrl string) {
+			defer wg.Done()
+			for h := range heightsChan {
+				time.Sleep(time.Duration(intervalSeconds) * time.Second)
+				b, err := m.getBlockTimestamp(apiUrl, h)
+				if err != nil && errors.Is(err, RateLimitErr) {
+					m.logger.Warn().Int64("height", h).Str("URL", url).Msg("request was rate limited - sleeping for a minute")
+					time.Sleep(1 * time.Minute)
+					continue
+				}
+
+				if err != nil {
+					m.logger.Error().Int64("height", h).Str("URL", url).Err(err).Msg("error getting block timestamp - skipping")
+					continue
+				}
+
+				m.logger.Debug().Int64("height", h).Str("URL", url).Msg("fetched block time")
+				blocktimes <- b
+			}
+		}(&wg, url)
+	}
+	wg.Wait()
 	m.logger.Info().Int("success", len(blocktimes)).Int("failed", len(heights)-len(blocktimes)).Msg("inserted block heights")
 
+	return nil
+}
+
+func (m *Monitor) storeBlockTime(b *BlockTime) error {
+	_, err := m.db.Exec(`
+	INSERT INTO osmo_block_times (height, timestamp, datetime)
+	VALUES (?, ?, ?)
+`, b.Height, b.Timestamp, b.Datetime)
+	if err != nil {
+		return fmt.Errorf("failed to insert block time: %w", err)
+	}
+
+	m.logger.Debug().Int64("height", b.Height).Msg("inserted block time")
 	return nil
 }
 
@@ -92,8 +129,8 @@ type ShortBlockResp struct {
 	} `json:"block"`
 }
 
-func (m *Monitor) getBlockTimestamp(height int64) (*BlockTime, error) {
-	url := fmt.Sprintf("%s/%s/%d", m.cfg.Osmosis.ApiUrl, BLOCK_QUERY, height)
+func (m *Monitor) getBlockTimestamp(apiUrl string, height int64) (*BlockTime, error) {
+	url := fmt.Sprintf("%s/%s/%d", apiUrl, BLOCK_QUERY, height)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -111,7 +148,7 @@ func (m *Monitor) getBlockTimestamp(height int64) (*BlockTime, error) {
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("got error code %d", resp.StatusCode)
+		return nil, fmt.Errorf("got error code %d - url: %s", resp.StatusCode, url)
 	}
 
 	body, err := io.ReadAll(resp.Body)
