@@ -97,13 +97,13 @@ func (m *Monitor) FetchAndSaveBlocktimes(intervalSeconds int) error {
 					break
 				}
 
-				m.logger.Debug().Int64("height", h).Str("URL", url).Msg("fetched block time")
+				m.logger.Info().Int64("height", h).Str("URL", url).Msg("fetched block time")
 				blocktimes <- b
 			}
 		}(&wg, url)
 	}
 	wg.Wait()
-	m.logger.Info().Int("success", len(blocktimes)).Int("failed", len(heights)-len(blocktimes)).Msg("inserted block heights")
+	m.logger.Info().Msg("finished inserted block heights")
 
 	return nil
 }
