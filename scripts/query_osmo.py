@@ -18,7 +18,7 @@ def get_all_orders():
     query = "wasm._contract_address='osmo1vy34lpt5zlj797w7zqdta3qfq834kapx88qtgudy7jgljztj567s73ny82' AND wasm.action='order_filled'"
 
     attempts = 0
-    max_attempts = 50
+    max_attempts = 100
     timestamp = int(time.time())
     total = 0
     while attempts < max_attempts:
@@ -48,6 +48,7 @@ def get_all_orders():
         all_txs.extend(data["txs"])
         all_tx_responses.extend(data["tx_responses"])
         attempts += 1
+        time.sleep(1)
 
     with open(f"orders_{timestamp}.json", "w") as f:
         json.dump({"txs": all_txs, "tx_responses": all_tx_responses}, f)

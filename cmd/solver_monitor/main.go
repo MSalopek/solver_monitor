@@ -35,6 +35,8 @@ func main() {
 	serverAddr := flag.String("server-addr", ":8080", "Server address to listen on")
 	skipInitialization := flag.Bool("skip-init", false, "Skip fetching state and txs on startup. Cron job will run on interval.")
 	serverOnly := flag.Bool("server-only", false, "Only run the server, don't fetch txs and dont start the cron job.")
+	getBlocks := flag.Bool("get-blocks", false, "Get blocks from the chain and save them to the db.")
+	getBlocksInterval := flag.Int("get-blocks-interval", 5, "Interval in seconds to get blocks from the chain and save them to the db.")
 	flag.Parse()
 
 	// Set up logging
@@ -88,6 +90,14 @@ func main() {
 	// this can be done via subcommands
 	if *loadFromFile != "" {
 		m.LoadFromFile(*loadFromFile, *saveRawResponses)
+		return
+	}
+
+	if *getBlocks != false {
+		err := m.FetchAndSaveBlocktimes(*getBlocksInterval)
+		if err != nil {
+			log.Error().Err(err).Msg("failed storing osmosis block times")
+		}
 		return
 	}
 

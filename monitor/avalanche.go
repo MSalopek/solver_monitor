@@ -140,10 +140,10 @@ func (m *Monitor) RunAvalancheBalances() {
 	time.Sleep(1 * time.Second)
 	usdc, err := m.getAvaxUSDCBalance(apiUrl, address)
 	if err != nil {
-		m.logger.Warn().Err(err).
+		m.logger.Debug().
 			Str("address", address).
 			Str("network", AVALANCHE_NETWORK).
-			Msg("failed to get USDC balance")
+			Msg("no USDC balance found")
 	}
 
 	if usdc != "" {

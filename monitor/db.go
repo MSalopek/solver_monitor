@@ -132,6 +132,18 @@ func InitDB(db *sql.DB) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	_, err = db.Exec(`
+	CREATE TABLE IF NOT EXISTS osmo_block_times (
+		height INTEGER,
+		timestamp INTEGER,
+		datetime DATETIME
+	)`)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// Create timestamp index
 	_, err = db.Exec(`
         CREATE INDEX IF NOT EXISTS idx_balances_timestamp 
