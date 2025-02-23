@@ -19,18 +19,18 @@ type BlockTime struct {
 const BLOCK_QUERY string = "/cosmos/base/tendermint/v1beta1/blocks"
 
 var urls = []string{
+	"https://osmosis-api.polkachu.com",          // doesn't have old block heights
+	"https://rest.lavenderfive.com:443/osmosis", // doesn't have old block heights
 	"https://osmosis-lcd.quickapi.com",
-	// "https://osmosis-api.polkachu.com", // doesn't have old block heights, other ones do
 	"https://osmosis-rest.publicnode.com",
 	"https://rest.cros-nest.com/osmosis",
 	"https://osmosis-api.chainroot.io",
-	"https://osmosis-lcd.quickapi.com:443",
 	"https://rest-osmosis.ecostake.com",
-	"https://rest.lavenderfive.com:443/osmosis",
 	"https://api.osmosis.validatus.com:443",
 }
 
 var RateLimitErr = errors.New("rate limit error")
+var NotAvailableError = errors.New("server not available error")
 
 func (m *Monitor) FetchAndSaveBlocktimes(intervalSeconds int) error {
 	m.logger.Info().Msg("fetching blocktimes")
@@ -79,6 +79,12 @@ func (m *Monitor) FetchAndSaveBlocktimes(intervalSeconds int) error {
 			for h := range heightsChan {
 				time.Sleep(time.Duration(intervalSeconds) * time.Second)
 				b, err := m.getBlockTimestamp(apiUrl, h)
+
+				// stop using this endpoint
+				if err != nil && errors.Is(err, NotAvailableError) {
+					m.logger.Error().Int64("height", h).Str("URL", url).Msg("server not available - stopping routine")
+					break
+				}
 				if err != nil && errors.Is(err, RateLimitErr) {
 					m.logger.Warn().Int64("height", h).Str("URL", url).Msg("request was rate limited - sleeping for a minute")
 					time.Sleep(1 * time.Minute)
@@ -142,6 +148,10 @@ func (m *Monitor) getBlockTimestamp(apiUrl string, height int64) (*BlockTime, er
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode == 500 {
+		return nil, NotAvailableError
+	}
 
 	if resp.StatusCode == 429 {
 		return nil, RateLimitErr
