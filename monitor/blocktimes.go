@@ -80,20 +80,21 @@ func (m *Monitor) FetchAndSaveBlocktimes(intervalSeconds int) error {
 				time.Sleep(time.Duration(intervalSeconds) * time.Second)
 				b, err := m.getBlockTimestamp(apiUrl, h)
 
-				// stop using this endpoint
-				if err != nil && errors.Is(err, NotAvailableError) {
-					m.logger.Error().Int64("height", h).Str("URL", url).Msg("server not available - stopping routine")
-					break
-				}
 				if err != nil && errors.Is(err, RateLimitErr) {
 					m.logger.Warn().Int64("height", h).Str("URL", url).Msg("request was rate limited - sleeping for a minute")
 					time.Sleep(1 * time.Minute)
 					continue
 				}
 
+				// stop using this endpoint
+				if err != nil && errors.Is(err, NotAvailableError) {
+					m.logger.Error().Int64("height", h).Str("URL", url).Msg("server not available - stopping routine")
+					break
+				}
+
 				if err != nil {
 					m.logger.Error().Int64("height", h).Str("URL", url).Err(err).Msg("error getting block timestamp - skipping")
-					continue
+					break
 				}
 
 				m.logger.Debug().Int64("height", h).Str("URL", url).Msg("fetched block time")
