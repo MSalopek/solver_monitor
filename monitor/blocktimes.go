@@ -24,7 +24,7 @@ var urls = []string{
 	"https://osmosis-lcd.quickapi.com",
 	"https://osmosis-rest.publicnode.com",
 	"https://rest.cros-nest.com/osmosis",
-	"https://osmosis-api.chainroot.io",
+	// "https://osmosis-api.chainroot.io",
 	"https://rest-osmosis.ecostake.com",
 	"https://api.osmosis.validatus.com:443",
 }
