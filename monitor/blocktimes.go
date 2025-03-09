@@ -24,9 +24,8 @@ var urls = []string{
 	"https://osmosis-lcd.quickapi.com",
 	"https://osmosis-rest.publicnode.com",
 	"https://rest.cros-nest.com/osmosis",
-	// "https://osmosis-api.chainroot.io",
 	"https://rest-osmosis.ecostake.com",
-	"https://api.osmosis.validatus.com:443",
+	"https://rest.cosmos.directory/osmosis",
 }
 
 var RateLimitErr = errors.New("rate limit error")
@@ -53,11 +52,14 @@ func (m *Monitor) FetchAndSaveBlocktimes(intervalSeconds int) error {
 		}
 		heights = append(heights, h)
 	}
-	m.logger.Info().Int64("count", int64(len(heights))).Msg("blocks in database")
+	m.logger.Info().Int64("count", int64(len(heights))).Msg("new blocks in database")
 
 	// process fetched block times
-	var blocktimes = make(chan *BlockTime, 10)
+	var blocktimes = make(chan *BlockTime, 100)
+	var processWg sync.WaitGroup
+	processWg.Add(1)
 	go func() {
+		defer processWg.Done()
 		for b := range blocktimes {
 			bt := b
 			m.storeBlockTime(bt)
@@ -70,10 +72,10 @@ func (m *Monitor) FetchAndSaveBlocktimes(intervalSeconds int) error {
 	}
 	close(heightsChan)
 
-	var wg sync.WaitGroup
+	var fetchWg sync.WaitGroup
 
 	for _, url := range urls {
-		wg.Add(1)
+		fetchWg.Add(1)
 		go func(wg *sync.WaitGroup, apiUrl string) {
 			defer wg.Done()
 			for h := range heightsChan {
@@ -100,15 +102,24 @@ func (m *Monitor) FetchAndSaveBlocktimes(intervalSeconds int) error {
 				m.logger.Info().Int64("height", h).Str("URL", url).Msg("fetched block time")
 				blocktimes <- b
 			}
-		}(&wg, url)
+		}(&fetchWg, url)
 	}
-	wg.Wait()
-	m.logger.Info().Msg("finished inserted block heights")
+
+	// waiting on multiple wait groups so both fetch and process
+	// can happen before the whole program exits
+	fetchWg.Wait()
+	close(blocktimes)
+	processWg.Wait()
+	m.logger.Info().Msg("finished inserting block heights")
 
 	return nil
 }
 
 func (m *Monitor) storeBlockTime(b *BlockTime) error {
+	m.logger.Debug().Int64("height", b.Height).
+		Int64("timestamp", b.Timestamp).
+		Str("datetime", b.Datetime).
+		Msg("inserting block time")
 	_, err := m.db.Exec(`
 	INSERT INTO osmo_block_times (height, timestamp, datetime)
 	VALUES (?, ?, ?)
@@ -117,7 +128,10 @@ func (m *Monitor) storeBlockTime(b *BlockTime) error {
 		return fmt.Errorf("failed to insert block time: %w", err)
 	}
 
-	m.logger.Debug().Int64("height", b.Height).Msg("inserted block time")
+	m.logger.Debug().Int64("height", b.Height).
+		Int64("timestamp", b.Timestamp).
+		Str("datetime", b.Datetime).
+		Msg("inserted block time")
 	return nil
 }
 
