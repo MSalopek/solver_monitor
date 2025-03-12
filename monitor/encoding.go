@@ -17,6 +17,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/types/tx"
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
+	authztypes "github.com/cosmos/cosmos-sdk/x/authz"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
 	"github.com/cosmos/gogoproto/proto"
@@ -58,6 +59,7 @@ func MakeEncodingConfig() EncodingConfig {
 	cryptocodec.RegisterInterfaces(interfaceRegistry)
 	wasmtypes.RegisterInterfaces(interfaceRegistry)
 	tx.RegisterInterfaces(interfaceRegistry)
+	authztypes.RegisterInterfaces(interfaceRegistry)
 	// distribtypes.RegisterInterfaces(interfaceRegistry)
 
 	txCfg := authtx.NewTxConfig(cdc, authtx.DefaultSignModes)

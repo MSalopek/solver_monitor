@@ -148,6 +148,7 @@ func (m *Monitor) GetNewOrders(height int, contractAddress string) ([]DbOrderFil
 
 	var data tx.GetTxsEventResponse
 	if err := m.Codec.UnmarshalJSON(body, &data); err != nil {
+		m.logger.Error().Err(err).Msg("failed to unmarshal GetTxsEventResponse")
 		return nil, nil, err
 	}
 
