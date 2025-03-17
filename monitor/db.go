@@ -77,6 +77,13 @@ func InitDB(db *sql.DB) {
 	}
 
 	_, err = db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_tx_data_height ON tx_data(height)
+	`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS raw_tx_responses (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			tx_hash TEXT,
@@ -140,6 +147,15 @@ func InitDB(db *sql.DB) {
 		datetime DATETIME
 	)`)
 
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create index on height
+	_, err = db.Exec(`
+        CREATE INDEX IF NOT EXISTS idx_osmo_block_times_height 
+        ON osmo_block_times(height)
+    `)
 	if err != nil {
 		log.Fatal(err)
 	}
