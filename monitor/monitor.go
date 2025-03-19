@@ -3,6 +3,7 @@ package monitor
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"sync"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/codec/types"
 	sdktypes "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/x/authz"
 )
 
 type ChainEntry struct {
@@ -128,6 +130,38 @@ func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
 	}()
 }
 
+// message can be authz.MsgExec or wasmtypes.MsgExecuteContract
+// the function will return the inner FillOrderEnvelope message
+func (m *Monitor) getFillOrderBodyBytes(msg []byte) ([]byte, error) {
+	// authzExec := authz.MsgExec{}
+	wasmExec := wasmtypes.MsgExecuteContract{}
+
+	// try as wasmExec first and try as authz if that fails
+	if err := m.Codec.Unmarshal(msg, &wasmExec); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal wasm: %w", err)
+	}
+
+	// the message was not an authz message and this does the job
+	if len(wasmExec.Msg.Bytes()) > 0 {
+		return wasmExec.Msg.Bytes(), nil
+	}
+
+	// for some reason there's no error but the length on the wasm exec was 0
+	// this means the message was an authz message and we need to unmarshal it
+	authzExec := authz.MsgExec{}
+	if err := m.Codec.Unmarshal(msg, &authzExec); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal authz: %w", err)
+	}
+
+	if len(authzExec.Msgs[0].Value) > 0 {
+		if err := m.Codec.Unmarshal(authzExec.Msgs[0].Value, &wasmExec); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal wasm inside authz: %w", err)
+		}
+	}
+
+	return wasmExec.Msg.Bytes(), nil
+}
+
 func (m *Monitor) DecodeTxResponse(r *sdktypes.TxResponse) []FillOrderEnvelope {
 	fillOrders := []FillOrderEnvelope{}
 	decodedTx, err := m.decoder.Decode(r.Tx.Value)
@@ -139,17 +173,16 @@ func (m *Monitor) DecodeTxResponse(r *sdktypes.TxResponse) []FillOrderEnvelope {
 	for _, msg := range decodedTx.Messages {
 		anyMsg, err := anyutil.New(msg)
 		if err != nil {
-			// types don't match -- skip
 			continue
 		}
-		exec := wasmtypes.MsgExecuteContract{}
-		if err := m.Codec.Unmarshal(anyMsg.Value, &exec); err != nil {
-			// types don't match -- skip
+
+		fillOrderBody, err := m.getFillOrderBodyBytes(anyMsg.Value)
+		if err != nil {
 			continue
 		}
 
 		fill := FillOrderEnvelope{}
-		if err := json.Unmarshal(exec.Msg.Bytes(), &fill); err != nil {
+		if err := json.Unmarshal(fillOrderBody, &fill); err != nil {
 			// types don't match -- skip
 			continue
 		}
