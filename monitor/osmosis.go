@@ -28,19 +28,19 @@ type TxsFile struct {
 
 type CosmosBalances []sdktypes.Coin
 
-func GetAllOsmosisOrders(contract_address string, apiUrl string) {
-	allTxs := []interface{}{}
-	allTxResponses := []interface{}{}
+func (m *Monitor) GetAllOsmosisOrders(contract_address string, apiUrl string, outputFile string) {
 	headers := map[string]string{"Accept": "application/json"}
 	baseURL := fmt.Sprintf("%s/cosmos/tx/v1beta1/txs", apiUrl)
 	query := fmt.Sprintf("wasm._contract_address='%s' AND wasm.action='order_filled'", contract_address)
 
 	attempts := 0
-	maxAttempts := 20
-	timestamp := time.Now().Unix()
+	maxRequests := 150
 	total := 0
 
-	for attempts < maxAttempts {
+	allTxs := []interface{}{}
+	allTxResponses := []interface{}{}
+	for attempts < maxRequests {
+		time.Sleep(2 * time.Second) // sleep between requests to avoid rate limiting
 		params := url.Values{}
 		params.Add("limit", "100")
 		params.Add("page", strconv.Itoa(attempts+1))
@@ -48,6 +48,7 @@ func GetAllOsmosisOrders(contract_address string, apiUrl string) {
 
 		encodedParams := params.Encode()
 		fullURL := fmt.Sprintf("%s?%s", baseURL, encodedParams)
+		m.logger.Info().Str("url", fullURL).Int("attempts", attempts).Msg("fetching orders")
 
 		req, err := http.NewRequest("GET", fullURL, nil)
 		if err != nil {
@@ -77,9 +78,9 @@ func GetAllOsmosisOrders(contract_address string, apiUrl string) {
 
 		if totalVal, ok := data["total"].(float64); ok {
 			total = int(totalVal)
-			fmt.Println(total, "HAVE", len(allTxs))
+			m.logger.Info().Int("total", total).Int("have", len(allTxs)).Msg("collected orders")
 			if len(allTxs) >= total {
-				fmt.Println("COLLECTED ALL")
+				m.logger.Info().Msg("collected all available orders")
 				break
 			}
 		}
@@ -94,25 +95,27 @@ func GetAllOsmosisOrders(contract_address string, apiUrl string) {
 			allTxResponses = append(allTxResponses, txResponses...)
 		}
 
-		filename := fmt.Sprintf("./orders/orders_%d_%d.json", timestamp, attempts)
 		attempts++
-
-		fileData := map[string]interface{}{
-			"txs":          allTxs,
-			"tx_responses": allTxResponses,
-		}
-
-		file, err := os.Create(filename)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer file.Close()
-
-		encoder := json.NewEncoder(file)
-		if err := encoder.Encode(fileData); err != nil {
-			log.Fatal(err)
-		}
 	}
+
+	m.logger.Info().Str("file", outputFile).Msg("saving orders")
+	fileData := map[string]interface{}{
+		"txs":          allTxs,
+		"tx_responses": allTxResponses,
+	}
+
+	file, err := os.Create(outputFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	if err := encoder.Encode(fileData); err != nil {
+		log.Fatal(err)
+	}
+
+	m.logger.Info().Str("file", outputFile).Msg("saved orders")
 }
 
 func (m *Monitor) GetNewOrders(height int, contractAddress string) ([]DbOrderFilled, []*DbTxResponse, error) {
