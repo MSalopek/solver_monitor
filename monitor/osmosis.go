@@ -34,7 +34,7 @@ func (m *Monitor) GetAllOsmosisOrders(contract_address string, apiUrl string, ou
 	query := fmt.Sprintf("wasm._contract_address='%s' AND wasm.action='order_filled'", contract_address)
 
 	attempts := 0
-	maxRequests := 150
+	maxRequests := 250
 	total := 0
 
 	allTxs := []interface{}{}
