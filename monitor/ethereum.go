@@ -276,6 +276,19 @@ func (m *Monitor) RunEthereumBalances() {
 			Str("address", address).
 			Str("network", ETHEREUM_NETWORK).
 			Msg("failed to get ETH balance")
+
+		if strings.Contains(err.Error(), "429") {
+			m.logger.Warn().Msg("hit rate limit for Ethereum API, retrying after 1 second")
+			time.Sleep(2 * time.Second)
+			// Retry fetching the balance after waiting
+			ethWei, err = m.getEthereumBalance(apiUrl, address, apiKey, "", ETHEREUM_CHAIN_ID)
+			if err != nil {
+				m.logger.Error().Err(err).
+					Str("address", address).
+					Str("network", ETHEREUM_NETWORK).
+					Msg("failed to get ETH balance after retry")
+			}
+		}
 	}
 
 	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Ethereum.UsdcAddress, ETHEREUM_CHAIN_ID)
@@ -284,6 +297,19 @@ func (m *Monitor) RunEthereumBalances() {
 			Str("address", address).
 			Str("network", ETHEREUM_NETWORK).
 			Msg("failed to get USDC balance")
+
+		if strings.Contains(err.Error(), "429") {
+			m.logger.Warn().Msg("hit rate limit for Ethereum API, retrying after 1 second")
+			time.Sleep(2 * time.Second)
+			// Retry fetching the balance after waiting
+			usdc, err = m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Ethereum.UsdcAddress, ETHEREUM_CHAIN_ID)
+			if err != nil {
+				m.logger.Error().Err(err).
+					Str("address", address).
+					Str("network", ETHEREUM_NETWORK).
+					Msg("failed to get USDC balance after retry")
+			}
+		}
 	}
 
 	if ethWei != "" {
@@ -342,6 +368,19 @@ func (m *Monitor) RunBaseBalances() {
 			Str("address", address).
 			Str("network", BASE_NETWORK).
 			Msg("failed to get ETH balance")
+
+		if strings.Contains(err.Error(), "429") {
+			m.logger.Warn().Msg("hit rate limit for Base API, retrying after 1 second")
+			time.Sleep(2 * time.Second)
+			// Retry fetching the balance after waiting
+			ethWei, err = m.getEthereumBalance(apiUrl, address, apiKey, "", BASE_CHAIN_ID)
+			if err != nil {
+				m.logger.Error().Err(err).
+					Str("address", address).
+					Str("network", BASE_NETWORK).
+					Msg("failed to get ETH balance after retry")
+			}
+		}
 	}
 
 	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Base.UsdcAddress, BASE_CHAIN_ID)
@@ -350,6 +389,19 @@ func (m *Monitor) RunBaseBalances() {
 			Str("address", address).
 			Str("network", BASE_NETWORK).
 			Msg("failed to get USDC balance")
+
+		if strings.Contains(err.Error(), "429") {
+			m.logger.Warn().Msg("hit rate limit for Base API, retrying after 1 second")
+			time.Sleep(2 * time.Second)
+			// Retry fetching the balance after waiting
+			usdc, err = m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Base.UsdcAddress, BASE_CHAIN_ID)
+			if err != nil {
+				m.logger.Error().Err(err).
+					Str("address", address).
+					Str("network", BASE_NETWORK).
+					Msg("failed to get USDC balance after retry")
+			}
+		}
 	}
 
 	if ethWei != "" {
@@ -408,6 +460,19 @@ func (m *Monitor) RunArbitrumBalances() {
 			Str("address", address).
 			Str("network", ARBITRUM_NETWORK).
 			Msg("failed to get ETH balance")
+
+		if strings.Contains(err.Error(), "429") {
+			m.logger.Warn().Msg("hit rate limit for Arbitrum API, retrying after 1 second")
+			time.Sleep(2 * time.Second)
+			// Retry fetching the balance after waiting
+			ethWei, err = m.getEthereumBalance(apiUrl, address, apiKey, "", ARBITRUM_CHAIN_ID)
+			if err != nil {
+				m.logger.Error().Err(err).
+					Str("address", address).
+					Str("network", ARBITRUM_NETWORK).
+					Msg("failed to get ETH balance after retry")
+			}
+		}
 	}
 
 	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Arbitrum.UsdcAddress, ARBITRUM_CHAIN_ID)
@@ -416,6 +481,18 @@ func (m *Monitor) RunArbitrumBalances() {
 			Str("address", address).
 			Str("network", ARBITRUM_NETWORK).
 			Msg("failed to get USDC balance")
+		if strings.Contains(err.Error(), "429") {
+			m.logger.Warn().Msg("hit rate limit for Arbitrum API, retrying after 1 second")
+			time.Sleep(2 * time.Second)
+			// Retry fetching the balance after waiting
+			usdc, err = m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Arbitrum.UsdcAddress, ARBITRUM_CHAIN_ID)
+			if err != nil {
+				m.logger.Error().Err(err).
+					Str("address", address).
+					Str("network", ARBITRUM_NETWORK).
+					Msg("failed to get USDC balance after retry")
+			}
+		}
 	}
 
 	if ethWei != "" {
@@ -558,6 +635,10 @@ func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress st
 	url := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
+		if req.Response.StatusCode == http.StatusTooManyRequests {
+			m.logger.Warn().Msg("hit rate limit for Ethereum API, retrying after 1 second")
+			return "", fmt.Errorf("429")
+		}
 		return "", err
 	}
 
