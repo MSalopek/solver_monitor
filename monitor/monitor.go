@@ -107,6 +107,8 @@ func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
 	m.RunEthereumTxHistory(saveRawResponses)
 	m.RunBaseTxHistory(saveRawResponses)
 	m.RunAvalancheTxHistory(saveRawResponses)
+
+	m.logger.Info().Msg("Finished running all monitors...")
 }
 
 func (m *Monitor) DecodeTxResponse(r *sdktypes.TxResponse) []FillOrderEnvelope {
