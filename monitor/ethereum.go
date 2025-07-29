@@ -68,7 +68,7 @@ func (m *Monitor) RunBaseTxHistory(saveRawResponses bool) {
 	address := m.cfg.Base.Address
 	apiKey := m.cfg.Base.Key
 
-	txs, err := m.getEthereumTxs(apiUrl, address, apiKey)
+	txs, err := m.getEthereumTxs(apiUrl, address, apiKey, BASE_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).Msg("failed to get BASE txs")
 		return
@@ -134,7 +134,7 @@ func (m *Monitor) RunArbitrumTxHistory(saveRawResponses bool) {
 	address := m.cfg.Arbitrum.Address
 	apiKey := m.cfg.Arbitrum.Key
 
-	txs, err := m.getEthereumTxs(apiUrl, address, apiKey)
+	txs, err := m.getEthereumTxs(apiUrl, address, apiKey, ARBITRUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).Msg("failed to get arbitrum txs")
 		return
@@ -201,7 +201,7 @@ func (m *Monitor) RunEthereumTxHistory(saveRawResponses bool) {
 	address := m.cfg.Ethereum.Address
 	apiKey := m.cfg.Ethereum.Key
 
-	txs, err := m.getEthereumTxs(apiUrl, address, apiKey)
+	txs, err := m.getEthereumTxs(apiUrl, address, apiKey, ETHEREUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).Msg("failed to get ethereum txs")
 		return
@@ -478,7 +478,7 @@ func (m *Monitor) getGasUsedForTxs(txs []EthTxDetails) *big.Int {
 	return total
 }
 
-func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string) ([]EthTxDetails, error) {
+func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string, chainId int) ([]EthTxDetails, error) {
 	headers := map[string]string{"Accept": "application/json"}
 
 	params := url.Values{}
@@ -491,6 +491,10 @@ func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string) (
 	params.Add("offset", "0") // fetch all for now - TODO: paginate
 	params.Add("sort", "desc")
 	params.Add("apikey", apiKey)
+
+	if strings.Contains(apiUrl, "v2") {
+		params.Add("chainid", strconv.Itoa(chainId))
+	}
 
 	url := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
 	req, err := http.NewRequest("GET", url, nil)
