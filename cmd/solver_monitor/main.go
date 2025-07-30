@@ -20,7 +20,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const API_URL = "https://osmosis-lcd.quickapi.com"
 const defaultContractAddress = "osmo1vy34lpt5zlj797w7zqdta3qfq834kapx88qtgudy7jgljztj567s73ny82"
 
 func main() {
@@ -85,7 +84,7 @@ func main() {
 	}
 	defer db.Close()
 
-	m := monitor.NewMonitor(db, cfg, &log.Logger, API_URL)
+	m := monitor.NewMonitor(db, cfg, &log.Logger, cfg.Osmosis.ApiUrl)
 
 	// this can be done via subcommands
 	if *loadFromFile != "" {

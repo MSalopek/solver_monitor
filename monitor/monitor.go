@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"cosmossdk.io/x/tx/decode"
 	wasmtypes "github.com/CosmWasm/wasmd/x/wasm/types"
@@ -91,44 +92,26 @@ func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
 	wg.Add(10)
 	go func() {
 		defer wg.Done()
-		m.RunOsmosisBalances()
-	}()
-	go func() {
-		defer wg.Done()
-		m.RunAvalancheBalances()
-	}()
-	go func() {
-		defer wg.Done()
-		m.RunEthereumBalances()
-	}()
-	go func() {
-		defer wg.Done()
-		m.RunArbitrumBalances()
-	}()
-	go func() {
-		defer wg.Done()
-		m.RunBaseBalances()
-	}()
-	go func() {
-		defer wg.Done()
 		m.RunOrders(saveRawResponses)
 	}()
 	go func() {
 		defer wg.Done()
-		m.RunArbitrumTxHistory(saveRawResponses)
+		m.RunOsmosisBalances()
 	}()
-	go func() {
-		defer wg.Done()
-		m.RunEthereumTxHistory(saveRawResponses)
-	}()
-	go func() {
-		defer wg.Done()
-		m.RunBaseTxHistory(saveRawResponses)
-	}()
-	go func() {
-		defer wg.Done()
-		m.RunAvalancheTxHistory(saveRawResponses)
-	}()
+	// Run balances for all chains without concurrency to avoid overwhelming the API
+	m.RunAvalancheBalances()
+	m.RunEthereumBalances()
+	m.RunArbitrumBalances()
+	m.RunBaseBalances()
+	time.Sleep(5 * time.Second)
+
+	// Run transactions for all chains without concurrency to avoid overwhelming the API
+	m.RunArbitrumTxHistory(saveRawResponses)
+	m.RunEthereumTxHistory(saveRawResponses)
+	m.RunBaseTxHistory(saveRawResponses)
+	m.RunAvalancheTxHistory(saveRawResponses)
+
+	m.logger.Info().Msg("Finished running all monitors...")
 }
 
 // message can be authz.MsgExec or wasmtypes.MsgExecuteContract
