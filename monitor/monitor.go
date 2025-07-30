@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"cosmossdk.io/x/tx/decode"
@@ -153,9 +154,23 @@ func (m *Monitor) getFillOrderBodyBytes(msg []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to unmarshal authz: %w", err)
 	}
 
-	if len(authzExec.Msgs[0].Value) > 0 {
-		if err := m.Codec.Unmarshal(authzExec.Msgs[0].Value, &wasmExec); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal wasm inside authz: %w", err)
+	if len(authzExec.Msgs) > 0 {
+		// loop over all messages and set the first message that matches
+		// fillOrder transaction as the wasmExec to be returned
+		for _, msg := range authzExec.Msgs {
+			temp := wasmtypes.MsgExecuteContract{}
+			if strings.Contains(string(msg.Value), "fill_order") {
+				if err := m.Codec.Unmarshal(msg.Value, &temp); err != nil {
+					return nil, fmt.Errorf("found fillOrder but failed to unmarshal %w", err)
+				}
+				// fillOrder was found and processed
+				wasmExec = temp
+				break
+			}
+			continue
+		}
+		if wasmExec.Msg == nil || len(wasmExec.Msg.Bytes()) == 0 {
+			return nil, fmt.Errorf("failed to unmarshal wasm inside authz - no fillOrder found")
 		}
 	}
 
@@ -169,7 +184,6 @@ func (m *Monitor) DecodeTxResponse(r *sdktypes.TxResponse) []FillOrderEnvelope {
 		return fillOrders
 	}
 
-	// fmt.Println(decodedTx)
 	for _, msg := range decodedTx.Messages {
 		anyMsg, err := anyutil.New(msg)
 		if err != nil {
