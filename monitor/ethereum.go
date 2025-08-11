@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -67,7 +68,7 @@ func (m *Monitor) RunBaseTxHistory(saveRawResponses bool) {
 	address := m.cfg.Base.Address
 	apiKey := m.cfg.Base.Key
 
-	txs, err := m.getEthereumTxs(apiUrl, address, apiKey)
+	txs, err := m.getEthereumTxs(apiUrl, address, apiKey, BASE_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).Msg("failed to get BASE txs")
 		return
@@ -133,7 +134,7 @@ func (m *Monitor) RunArbitrumTxHistory(saveRawResponses bool) {
 	address := m.cfg.Arbitrum.Address
 	apiKey := m.cfg.Arbitrum.Key
 
-	txs, err := m.getEthereumTxs(apiUrl, address, apiKey)
+	txs, err := m.getEthereumTxs(apiUrl, address, apiKey, ARBITRUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).Msg("failed to get arbitrum txs")
 		return
@@ -200,7 +201,7 @@ func (m *Monitor) RunEthereumTxHistory(saveRawResponses bool) {
 	address := m.cfg.Ethereum.Address
 	apiKey := m.cfg.Ethereum.Key
 
-	txs, err := m.getEthereumTxs(apiUrl, address, apiKey)
+	txs, err := m.getEthereumTxs(apiUrl, address, apiKey, ETHEREUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).Msg("failed to get ethereum txs")
 		return
@@ -263,26 +264,28 @@ func (m *Monitor) RunEthereumTxHistory(saveRawResponses bool) {
 
 // ethereum balances are handled as strings and stored as strings in the db
 // sqlite cannot store 256 bit integers, so we use strings to get around that
-func (m *Monitor) RunEthereumBalances() {
+func (m *Monitor) RunEthereumBalances() int {
 	apiUrl := m.cfg.Ethereum.ApiUrl
 	address := m.cfg.Ethereum.Address
 	apiKey := m.cfg.Ethereum.Key
 	useTs := time.Now()
 
-	ethWei, err := m.getEthereumBalance(apiUrl, address, apiKey, "")
+	ethWei, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, "", ETHEREUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", ETHEREUM_NETWORK).
 			Msg("failed to get ETH balance")
+		return httpCode
 	}
 
-	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Ethereum.UsdcAddress)
+	usdc, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Ethereum.UsdcAddress, ETHEREUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", ETHEREUM_NETWORK).
 			Msg("failed to get USDC balance")
+		return httpCode
 	}
 
 	if ethWei != "" {
@@ -327,28 +330,31 @@ func (m *Monitor) RunEthereumBalances() {
 				Msg("current balance")
 		}
 	}
+	return httpCode
 }
 
-func (m *Monitor) RunBaseBalances() {
+func (m *Monitor) RunBaseBalances() int {
 	apiUrl := m.cfg.Base.ApiUrl
 	address := m.cfg.Base.Address
 	apiKey := m.cfg.Base.Key
 	useTs := time.Now()
 
-	ethWei, err := m.getEthereumBalance(apiUrl, address, apiKey, "")
+	ethWei, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, "", BASE_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", BASE_NETWORK).
 			Msg("failed to get ETH balance")
+		return httpCode
 	}
 
-	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Base.UsdcAddress)
+	usdc, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Base.UsdcAddress, BASE_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", BASE_NETWORK).
 			Msg("failed to get USDC balance")
+		return httpCode
 	}
 
 	if ethWei != "" {
@@ -393,28 +399,31 @@ func (m *Monitor) RunBaseBalances() {
 				Msg("current balance")
 		}
 	}
+	return httpCode
 }
 
-func (m *Monitor) RunArbitrumBalances() {
+func (m *Monitor) RunArbitrumBalances() int {
 	apiUrl := m.cfg.Arbitrum.ApiUrl
 	address := m.cfg.Arbitrum.Address
 	apiKey := m.cfg.Arbitrum.Key
 	useTs := time.Now()
 
-	ethWei, err := m.getEthereumBalance(apiUrl, address, apiKey, "")
+	ethWei, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, "", ARBITRUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", ARBITRUM_NETWORK).
 			Msg("failed to get ETH balance")
+		return httpCode
 	}
 
-	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Arbitrum.UsdcAddress)
+	usdc, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Arbitrum.UsdcAddress, ARBITRUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", ARBITRUM_NETWORK).
 			Msg("failed to get USDC balance")
+		return httpCode
 	}
 
 	if ethWei != "" {
@@ -459,6 +468,7 @@ func (m *Monitor) RunArbitrumBalances() {
 				Msg("current balance")
 		}
 	}
+	return httpCode
 }
 
 func (m *Monitor) getGasUsedForTxs(txs []EthTxDetails) *big.Int {
@@ -477,7 +487,7 @@ func (m *Monitor) getGasUsedForTxs(txs []EthTxDetails) *big.Int {
 	return total
 }
 
-func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string) ([]EthTxDetails, error) {
+func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string, chainId int) ([]EthTxDetails, error) {
 	headers := map[string]string{"Accept": "application/json"}
 
 	params := url.Values{}
@@ -490,6 +500,10 @@ func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string) (
 	params.Add("offset", "0") // fetch all for now - TODO: paginate
 	params.Add("sort", "desc")
 	params.Add("apikey", apiKey)
+
+	if strings.Contains(apiUrl, "v2") {
+		params.Add("chainid", strconv.Itoa(chainId))
+	}
 
 	url := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
 	req, err := http.NewRequest("GET", url, nil)
@@ -528,7 +542,7 @@ func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string) (
 // * USDC is always 6 decimals
 // * ETH is always 18 decimals
 // * different L2s use different contract addresses for USDC
-func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress string) (string, error) {
+func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress string, chainId int) (string, int, error) {
 	headers := map[string]string{"Accept": "application/json"}
 
 	params := url.Values{}
@@ -544,10 +558,16 @@ func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress st
 		params.Add("action", "balance")
 	}
 
+	// New Etherscan API v2 requires chainId to be specified in the URL
+	// if the apiUrl has /v2/ in the path, add chainId to the URL
+	if strings.Contains(apiUrl, "v2") {
+		params.Add("chainid", strconv.Itoa(chainId))
+	}
+
 	url := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", err
+		return "", req.Response.StatusCode, err
 	}
 
 	for key, value := range headers {
@@ -557,21 +577,21 @@ func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress st
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", resp.StatusCode, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", resp.StatusCode, err
 	}
 
 	var data EthBalanceResponse
 	if err := json.Unmarshal(body, &data); err != nil {
-		return "", err
+		return "", resp.StatusCode, err
 	}
 
-	return data.Result, nil
+	return data.Result, resp.StatusCode, nil
 
 }
 
