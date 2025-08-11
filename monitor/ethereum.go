@@ -264,52 +264,28 @@ func (m *Monitor) RunEthereumTxHistory(saveRawResponses bool) {
 
 // ethereum balances are handled as strings and stored as strings in the db
 // sqlite cannot store 256 bit integers, so we use strings to get around that
-func (m *Monitor) RunEthereumBalances() {
+func (m *Monitor) RunEthereumBalances() int {
 	apiUrl := m.cfg.Ethereum.ApiUrl
 	address := m.cfg.Ethereum.Address
 	apiKey := m.cfg.Ethereum.Key
 	useTs := time.Now()
 
-	ethWei, err := m.getEthereumBalance(apiUrl, address, apiKey, "", ETHEREUM_CHAIN_ID)
+	ethWei, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, "", ETHEREUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", ETHEREUM_NETWORK).
 			Msg("failed to get ETH balance")
-
-		if strings.Contains(err.Error(), "429") {
-			m.logger.Warn().Msg("hit rate limit for Ethereum API, retrying after 1 second")
-			time.Sleep(2 * time.Second)
-			// Retry fetching the balance after waiting
-			ethWei, err = m.getEthereumBalance(apiUrl, address, apiKey, "", ETHEREUM_CHAIN_ID)
-			if err != nil {
-				m.logger.Error().Err(err).
-					Str("address", address).
-					Str("network", ETHEREUM_NETWORK).
-					Msg("failed to get ETH balance after retry")
-			}
-		}
+		return httpCode
 	}
 
-	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Ethereum.UsdcAddress, ETHEREUM_CHAIN_ID)
+	usdc, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Ethereum.UsdcAddress, ETHEREUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", ETHEREUM_NETWORK).
 			Msg("failed to get USDC balance")
-
-		if strings.Contains(err.Error(), "429") {
-			m.logger.Warn().Msg("hit rate limit for Ethereum API, retrying after 1 second")
-			time.Sleep(2 * time.Second)
-			// Retry fetching the balance after waiting
-			usdc, err = m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Ethereum.UsdcAddress, ETHEREUM_CHAIN_ID)
-			if err != nil {
-				m.logger.Error().Err(err).
-					Str("address", address).
-					Str("network", ETHEREUM_NETWORK).
-					Msg("failed to get USDC balance after retry")
-			}
-		}
+		return httpCode
 	}
 
 	if ethWei != "" {
@@ -354,54 +330,31 @@ func (m *Monitor) RunEthereumBalances() {
 				Msg("current balance")
 		}
 	}
+	return httpCode
 }
 
-func (m *Monitor) RunBaseBalances() {
+func (m *Monitor) RunBaseBalances() int {
 	apiUrl := m.cfg.Base.ApiUrl
 	address := m.cfg.Base.Address
 	apiKey := m.cfg.Base.Key
 	useTs := time.Now()
 
-	ethWei, err := m.getEthereumBalance(apiUrl, address, apiKey, "", BASE_CHAIN_ID)
+	ethWei, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, "", BASE_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", BASE_NETWORK).
 			Msg("failed to get ETH balance")
-
-		if strings.Contains(err.Error(), "429") {
-			m.logger.Warn().Msg("hit rate limit for Base API, retrying after 1 second")
-			time.Sleep(2 * time.Second)
-			// Retry fetching the balance after waiting
-			ethWei, err = m.getEthereumBalance(apiUrl, address, apiKey, "", BASE_CHAIN_ID)
-			if err != nil {
-				m.logger.Error().Err(err).
-					Str("address", address).
-					Str("network", BASE_NETWORK).
-					Msg("failed to get ETH balance after retry")
-			}
-		}
+		return httpCode
 	}
 
-	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Base.UsdcAddress, BASE_CHAIN_ID)
+	usdc, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Base.UsdcAddress, BASE_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", BASE_NETWORK).
 			Msg("failed to get USDC balance")
-
-		if strings.Contains(err.Error(), "429") {
-			m.logger.Warn().Msg("hit rate limit for Base API, retrying after 1 second")
-			time.Sleep(2 * time.Second)
-			// Retry fetching the balance after waiting
-			usdc, err = m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Base.UsdcAddress, BASE_CHAIN_ID)
-			if err != nil {
-				m.logger.Error().Err(err).
-					Str("address", address).
-					Str("network", BASE_NETWORK).
-					Msg("failed to get USDC balance after retry")
-			}
-		}
+		return httpCode
 	}
 
 	if ethWei != "" {
@@ -446,53 +399,31 @@ func (m *Monitor) RunBaseBalances() {
 				Msg("current balance")
 		}
 	}
+	return httpCode
 }
 
-func (m *Monitor) RunArbitrumBalances() {
+func (m *Monitor) RunArbitrumBalances() int {
 	apiUrl := m.cfg.Arbitrum.ApiUrl
 	address := m.cfg.Arbitrum.Address
 	apiKey := m.cfg.Arbitrum.Key
 	useTs := time.Now()
 
-	ethWei, err := m.getEthereumBalance(apiUrl, address, apiKey, "", ARBITRUM_CHAIN_ID)
+	ethWei, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, "", ARBITRUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", ARBITRUM_NETWORK).
 			Msg("failed to get ETH balance")
-
-		if strings.Contains(err.Error(), "429") {
-			m.logger.Warn().Msg("hit rate limit for Arbitrum API, retrying after 1 second")
-			time.Sleep(2 * time.Second)
-			// Retry fetching the balance after waiting
-			ethWei, err = m.getEthereumBalance(apiUrl, address, apiKey, "", ARBITRUM_CHAIN_ID)
-			if err != nil {
-				m.logger.Error().Err(err).
-					Str("address", address).
-					Str("network", ARBITRUM_NETWORK).
-					Msg("failed to get ETH balance after retry")
-			}
-		}
+		return httpCode
 	}
 
-	usdc, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Arbitrum.UsdcAddress, ARBITRUM_CHAIN_ID)
+	usdc, httpCode, err := m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Arbitrum.UsdcAddress, ARBITRUM_CHAIN_ID)
 	if err != nil {
 		m.logger.Error().Err(err).
 			Str("address", address).
 			Str("network", ARBITRUM_NETWORK).
 			Msg("failed to get USDC balance")
-		if strings.Contains(err.Error(), "429") {
-			m.logger.Warn().Msg("hit rate limit for Arbitrum API, retrying after 1 second")
-			time.Sleep(2 * time.Second)
-			// Retry fetching the balance after waiting
-			usdc, err = m.getEthereumBalance(apiUrl, address, apiKey, m.cfg.Arbitrum.UsdcAddress, ARBITRUM_CHAIN_ID)
-			if err != nil {
-				m.logger.Error().Err(err).
-					Str("address", address).
-					Str("network", ARBITRUM_NETWORK).
-					Msg("failed to get USDC balance after retry")
-			}
-		}
+		return httpCode
 	}
 
 	if ethWei != "" {
@@ -537,6 +468,7 @@ func (m *Monitor) RunArbitrumBalances() {
 				Msg("current balance")
 		}
 	}
+	return httpCode
 }
 
 func (m *Monitor) getGasUsedForTxs(txs []EthTxDetails) *big.Int {
@@ -610,7 +542,7 @@ func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string, c
 // * USDC is always 6 decimals
 // * ETH is always 18 decimals
 // * different L2s use different contract addresses for USDC
-func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress string, chainId int) (string, error) {
+func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress string, chainId int) (string, int, error) {
 	headers := map[string]string{"Accept": "application/json"}
 
 	params := url.Values{}
@@ -635,11 +567,7 @@ func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress st
 	url := fmt.Sprintf("%s?%s", apiUrl, params.Encode())
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		if req.Response.StatusCode == http.StatusTooManyRequests {
-			m.logger.Warn().Msg("hit rate limit for Ethereum API, retrying after 1 second")
-			return "", fmt.Errorf("429")
-		}
-		return "", err
+		return "", req.Response.StatusCode, err
 	}
 
 	for key, value := range headers {
@@ -649,21 +577,21 @@ func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress st
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", resp.StatusCode, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", resp.StatusCode, err
 	}
 
 	var data EthBalanceResponse
 	if err := json.Unmarshal(body, &data); err != nil {
-		return "", err
+		return "", resp.StatusCode, err
 	}
 
-	return data.Result, nil
+	return data.Result, resp.StatusCode, nil
 
 }
 

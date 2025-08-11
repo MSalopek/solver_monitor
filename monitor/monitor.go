@@ -86,7 +86,13 @@ func NewMonitor(db *sql.DB, cfg *Config, logger *zerolog.Logger, apiUrl string) 
 }
 
 func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
-	wg.Add(10)
+	ethRetry := 0
+	arbitrumRetry := 0
+	baseRetry := 0
+	maxRetry := 5
+	limitSleep := 60 * time.Second
+
+	wg.Add(6)
 	go func() {
 		defer wg.Done()
 		m.RunOrders(saveRawResponses)
@@ -95,20 +101,69 @@ func (m *Monitor) RunAll(wg *sync.WaitGroup, saveRawResponses bool) {
 		defer wg.Done()
 		m.RunOsmosisBalances()
 	}()
-	// Run balances for all chains without concurrency to avoid overwhelming the API
-	m.RunAvalancheBalances()
-	m.RunEthereumBalances()
-	m.RunArbitrumBalances()
-	m.RunBaseBalances()
-	time.Sleep(5 * time.Second)
-
-	// Run transactions for all chains without concurrency to avoid overwhelming the API
-	m.RunArbitrumTxHistory(saveRawResponses)
-	m.RunEthereumTxHistory(saveRawResponses)
-	m.RunBaseTxHistory(saveRawResponses)
-	m.RunAvalancheTxHistory(saveRawResponses)
-
-	m.logger.Info().Msg("Finished running all monitors...")
+	go func() {
+		defer wg.Done()
+		m.RunAvalancheBalances()
+		time.Sleep(limitSleep)
+		m.RunAvalancheTxHistory(saveRawResponses)
+	}()
+	go func() {
+		defer wg.Done()
+		for {
+			code := m.RunEthereumBalances()
+			if code != 200 {
+				logMsg := HttpCodeCheck(code)
+				m.logger.Error().Msgf("%s, code: %d", logMsg, code)
+				time.Sleep(limitSleep)
+				ethRetry++
+				if ethRetry > maxRetry {
+					m.logger.Error().Msg("Ethereum balances RPC query retries exceeded, exiting")
+					os.Exit(1)
+				}
+				continue
+			}
+			break
+		}
+		m.RunEthereumTxHistory(saveRawResponses)
+	}()
+	go func() {
+		defer wg.Done()
+		for {
+			code := m.RunArbitrumBalances()
+			if code != 200 {
+				logMsg := HttpCodeCheck(code)
+				m.logger.Error().Msgf("%s, code: %d", logMsg, code)
+				time.Sleep(limitSleep)
+				arbitrumRetry++
+				if arbitrumRetry > maxRetry {
+					m.logger.Error().Msg("Arbitrum balances RPC query retries exceeded, exiting")
+					os.Exit(1)
+				}
+				continue
+			}
+			break
+		}
+		m.RunArbitrumTxHistory(saveRawResponses)
+	}()
+	go func() {
+		defer wg.Done()
+		for {
+			code := m.RunBaseBalances()
+			if code != 200 {
+				logMsg := HttpCodeCheck(code)
+				m.logger.Error().Msgf("%s, code: %d", logMsg, code)
+				time.Sleep(limitSleep)
+				baseRetry++
+				if baseRetry > maxRetry {
+					m.logger.Error().Msg("Base balances RPC query retries exceeded, exiting")
+					os.Exit(1)
+				}
+				continue
+			}
+			break
+		}
+		m.RunBaseTxHistory(saveRawResponses)
+	}()
 }
 
 func (m *Monitor) DecodeTxResponse(r *sdktypes.TxResponse) []FillOrderEnvelope {
