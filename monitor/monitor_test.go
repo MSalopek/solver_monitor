@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	types "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/tx"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
@@ -81,4 +82,21 @@ func TestDecodeTxResponses(t *testing.T) {
 	assert.Equal(t, "1000000", txs[1].FillOrder.Order.AmountIn)
 	assert.Equal(t, "939000", txs[1].FillOrder.Order.AmountOut)
 	assert.Equal(t, uint32(42161), txs[1].FillOrder.Order.SourceDomain)
+}
+
+func TestDecodeTxResponsesAuthz(t *testing.T) {
+	m := newTestMonitor()
+
+	raw := loadTestFixture(t, "test_multi_execs_authz.json")
+
+	var txResponse types.TxResponse
+	if err := m.Codec.UnmarshalJSON(raw, &txResponse); err != nil {
+		t.Fatalf("codec failed to unmarshal test fixture: %v", err)
+	}
+
+	msgs := m.DecodeTxResponse(&txResponse)
+	for _, msg := range msgs {
+		assert.NotEmpty(t, msg, "tx should not be empty")
+		assert.Equal(t, "101500000", msg.FillOrder.Order.AmountIn)
+	}
 }

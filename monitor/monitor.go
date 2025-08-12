@@ -180,9 +180,12 @@ func (m *Monitor) getFillOrderBodyBytes(msg []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to unmarshal wasm: %w", err)
 	}
 
-	// the message was not an authz message and this does the job
+	// this was wasmExec but it can be the wrong type (we only want fillOrder)
 	if len(wasmExec.Msg.Bytes()) > 0 {
-		return wasmExec.Msg.Bytes(), nil
+		if strings.Contains(string(wasmExec.Msg.Bytes()), "fill_order") {
+			return wasmExec.Msg.Bytes(), nil
+		}
+		return nil, fmt.Errorf("wasmExec but not fillOrder")
 	}
 
 	// for some reason there's no error but the length on the wasm exec was 0
