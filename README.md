@@ -1,28 +1,28 @@
-# Usage of ./solver_monitor:
+# Usage of ./solver_monitor
 
 ```
   -config string
-    	Path to the config file (default "config.toml")
+     Path to the config file (default "config.toml")
   -contract-address string
-    	Osmosis skip-go-fast contract address to monitor.
+     Osmosis skip-go-fast contract address to monitor.
   -db string
-    	Path to the db file (default "tx_data.db")
+     Path to the db file (default "tx_data.db")
   -interval int
-    	Polling interval in minutes (default 1)
+     Polling interval in minutes (default 1)
   -load-from-file string
-    	Load orders from file. If provided, all other arguments are ignored.
+     Load orders from file. If provided, all other arguments are ignored.
   -log-format string
-    	Set the log output format (default "json")
+     Set the log output format (default "json")
   -log-level string
-    	Set the logging level (default "INFO")
+     Set the logging level (default "INFO")
   -save-raw-tx
-    	Save raw tx responses to db
+     Save raw tx responses to db
   -server-addr string
-    	Server address to listen on (default ":8080")
+     Server address to listen on (default ":8080")
   -server-only
-    	Only run the server, don't fetch txs and dont start the cron job.
+     Only run the server, don't fetch txs and dont start the cron job.
   -skip-init
-    	Skip fetching state and txs on startup. Cron job will run on interval.
+     Skip fetching state and txs on startup. Cron job will run on interval.
 ```
 
 # API interface
@@ -181,13 +181,16 @@ curl 'localhost:8080/stats/orders_filled/fill_stats?filler=<osmosis address>' | 
 Returns aggregated data about orders executed in given range, alongside volume and the fill amounts (min, avg, max).
 
 **Required args**
-* `network`: arbitrum, base, ethereum
+
+- `network`: arbitrum, base, ethereum
 
 **Optional args**
-* `filler` - solver osmosis address to filter by
-* `start_block` - reduces the output set; it will start from `start_block` - earlier blocks are ignored
+
+- `filler` - solver osmosis address to filter by
+- `start_block` - reduces the output set; it will start from `start_block` - earlier blocks are ignored
 
 Example:
+
 ```shell
 curl 'localhost:8080/stats/orders_filled/fills_in_range?network=ethereum&filler=osmo1xjuvq8mlmhc24l2ewya2uyyj9t6r0dcfdhza6h&start_block=27354010' | jq .
 {
@@ -207,3 +210,31 @@ curl 'localhost:8080/stats/orders_filled/fills_in_range?network=ethereum&filler=
 }
 ```
 
+2025-08-14T10:36:16-04:00 ERR failed to get BASE txs error="json: cannot unmarshal string into Go struct field EthScanTxListResponse.result of type []monitor.EthTxDetails"
+2025-08-14T10:36:16-04:00 ERR failed to get arbitrum txs error="json: cannot unmarshal string into Go struct field EthScanTxListResponse.result of type []monitor.EthTxDetails"
+
+3ZQUQBDTNJSX8K8KX1SA99XQTKECT6M152
+
+```json
+         "blockNumber":"14923678",
+         "blockHash":"0x7e1638fd2c6bdd05ffd83c1cf06c63e2f67d0f802084bef076d06bdcf86d1bb0",
+         "timeStamp":"1654646411",
+         "hash":"0xc52783ad354aecc04c670047754f062e3d6d04e8f5b24774472651f9c3882c60",
+         "nonce":"1",
+         "transactionIndex":"61",
+         "from":"0x9aa99c23f67c81701c772b106b4f83f6e858dd2e",
+         "to":"",
+         "value":"0",
+         "gas":"6000000",
+         "gasPrice":"83924748773",
+         "input":"",
+         "methodId":"0x61016060",
+         "functionName":""
+         "contractAddress":"0xc5102fe9359fd9a28f877a67e36b0f050d81a3cc",
+         "txreceipt_status":"1",
+         "gasUsed":"4457269",
+         "confirmations":"122485",
+         "isError":"0",
+         "cumulativeGasUsed":"10450178",
+
+```
