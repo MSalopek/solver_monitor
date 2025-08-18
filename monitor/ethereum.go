@@ -526,7 +526,6 @@ func (m *Monitor) getEthereumTxs(apiUrl string, address string, apiKey string, c
 // * ETH is always 18 decimals
 // * different L2s use different contract addresses for USDC
 func (m *Monitor) getEthereumBalance(apiUrl, address, apiKey, contractAddress string, chainId int) (string, error) {
-	// headers := map[string]string{"Accept": "application/json"}
 
 	params := url.Values{}
 	params.Add("module", "account")
@@ -645,7 +644,7 @@ func (m *Monitor) execEthereumQueryWithRetry(queryUrl string) ([]byte, error) {
 			if apiResp["message"] == "OK" {
 				break
 			}
-			fmt.Println(apiResp["result"])
+			m.logger.Debug().Msgf("retrying failed Ethereum query; API result: %s", apiResp["result"])
 		}
 
 		retries--
